@@ -445,7 +445,7 @@ const API_KEY  = 'AIzaSyAAqpieBssS21pv8zOesFnpBOR-VYIP4V4';
 const BASE_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`;
 
 // Sheet tab names — will be created on first write if missing
-const SHEETS = { chiro: 'Chiropractors', pi: 'PI Attorneys' };
+const SHEETS = { chiro: 'louisville chiropracters', pi: 'louisville pi attorneys' };
 
 // Column order stored in sheet
 const COLS = ['id','type','firstname','lastname','practice','priority','phone','email',
@@ -1021,17 +1021,18 @@ function doImport() {
 
   const header = parseCSVLine(lines[0]).map(h=>h.toLowerCase().replace(/[^a-z0-9]/g,''));
   const colMap = {
-    firstname:['firstname','first','fname'],
-    lastname:['lastname','last','lname'],
-    practice:['practice','firm','practicename','firmname','company','name'],
-    phone:['phone','tel','telephone','phonenumber'],
-    email:['email','emailaddress','mail'],
-    website:['website','web','url','site'],
-    address:['address','streetaddress','street','fulladdress'],
-    city:['city','town'],
-    zip:['zip','zipcode','postal','postalcode'],
-    priority:['priority'],
-    notes:['notes','note','comments']
+    firstname:  ['firstname','first','fname','first_name'],
+    lastname:   ['lastname','last','lname','last_name'],
+    fullname:   ['fullname','full_name','nameforemails','name_for_emails'],
+    practice:   ['practice','firm','practicename','firmname','company','companyname','company_name','name'],
+    phone:      ['phone','tel','telephone','phonenumber','contactphone','contact_phone'],
+    email:      ['email','emailaddress','mail'],
+    website:    ['website','web','url','site','domain'],
+    address:    ['address','streetaddress','street','fulladdress'],
+    city:       ['city','town'],
+    zip:        ['zip','zipcode','postal','postalcode','postalcode','postal_code'],
+    priority:   ['priority'],
+    notes:      ['notes','note','comments','description']
   };
   const idx={};
   for (const [field,aliases] of Object.entries(colMap)) {
@@ -1040,18 +1041,40 @@ function doImport() {
     }
   }
 
-  let added=0;
+  // Deduplicate by phone or name+address
+  const seen = new Set();
+  let added=0, skipped=0;
   for (let i=1;i<lines.length;i++) {
     const cols=parseCSVLine(lines[i]);
     if (cols.every(c=>!c)) continue;
-    const get=f=>idx[f]!==undefined?(cols[idx[f]]||''):'';
+    const get=f=>idx[f]!==undefined?(cols[idx[f]]||''): '';
+
+    // Resolve name: prefer first+last, fall back to splitting fullname
+    let firstname = get('firstname');
+    let lastname   = get('lastname');
+    if (!firstname && !lastname) {
+      const full = get('fullname') || get('practice') || '';
+      const parts = full.trim().split(/\s+/);
+      firstname = parts[0] || '';
+      lastname  = parts.slice(1).join(' ') || '';
+    }
+
+    // Deduplicate key: phone or name+city
+    const phone = get('phone').replace(/\D/g,'');
+    const dedupeKey = phone || (firstname+lastname+get('city')).toLowerCase().replace(/\s/g,'');
+    if (dedupeKey && seen.has(dedupeKey)) { skipped++; continue; }
+    if (dedupeKey) seen.add(dedupeKey);
+
     contacts.push({
       id:genId(), type:activeTab,
-      firstname:get('firstname'), lastname:get('lastname'),
-      practice:get('practice'), phone:get('phone'),
-      email:get('email'), website:get('website'),
+      firstname, lastname,
+      practice:get('practice')||get('fullname')||'',
+      phone:get('phone'),
+      email:get('email'),
+      website:get('website')||get('domain')||'',
       address:get('address'), city:get('city')||'Louisville',
-      zip:get('zip'), source:get('source')||(activeTab==='chiro'?'Google Maps':'Apollo.io'),
+      zip:get('zip'),
+      source: activeTab==='chiro' ? 'Google Maps' : 'Apollo.io',
       priority:get('priority')||'Medium',
       notes:get('notes'), touch:1, completed:false,
       nextActionDate:todayStr(), lastContactDate:'', createdAt:todayStr()
@@ -1060,7 +1083,7 @@ function doImport() {
   }
   renderTable(); closeImportModal();
   scheduleSave();
-  alert(`✓ Imported ${added} contact${added!==1?'s':''} — saving to Google Sheets...`);
+  alert(`✓ Imported ${added} contact${added!==1?'s':''}${skipped>0?' ('+skipped+' duplicates skipped)':''} — saving to Google Sheets...`);
 }
 
 // ── MODAL ─────────────────────────────────────────────────────────────
