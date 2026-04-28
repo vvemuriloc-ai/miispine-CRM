@@ -445,7 +445,7 @@ const API_KEY  = 'AIzaSyAAqpieBssS21pv8zOesFnpBOR-VYIP4V4';
 const BASE_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`;
 
 // Sheet tab names — will be created on first write if missing
-const SHEETS = { chiro: 'louisville chiropracters', pi: 'louisville pi attorneys' };
+const SHEETS = { chiro: 'Louisville Chiropractors', pi: 'Louisville PI Attorneys' };
 
 // Column order stored in sheet
 const COLS = ['id','type','firstname','lastname','practice','priority','phone','email',
@@ -595,9 +595,10 @@ function fmtDate(str) {
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
 function getStatus(c) {
-  if (c.completed === true || c.completed === 'true' || c.touch > 3) return 'complete';
-  if (!c.nextActionDate) return 'ok';
+  if (c.completed === true || c.completed === 'true' || parseInt(c.touch) > 3) return 'complete';
+  if (!c.nextActionDate || c.nextActionDate === '' || c.nextActionDate === 'Invalid Date') return 'ok';
   const nd = new Date(c.nextActionDate + 'T12:00:00');
+  if (isNaN(nd.getTime())) return 'ok';
   const td = new Date(); td.setHours(0,0,0,0);
   if (nd < td) return 'overdue';
   if (nd.toDateString() === td.toDateString()) return 'due';
@@ -836,7 +837,7 @@ function renderTable() {
       const statusHtml = {
         overdue: `<span class="status-overdue">● Overdue ${fmtDate(c.nextActionDate)}</span>`,
         due: `<span class="status-due">● Due Today</span>`,
-        ok: `<span class="status-ok">● ${fmtDate(c.nextActionDate)}</span>`,
+        ok: `<span class="status-ok">● Ready to contact</span>`,
         complete: `<span class="status-complete">✓ Complete</span>`
       }[st];
       const pips = [1,2,3].map(i => {
@@ -1026,7 +1027,7 @@ function doImport() {
     fullname:   ['fullname','full_name','nameforemails','name_for_emails'],
     practice:   ['practice','firm','practicename','firmname','company','companyname','company_name','name'],
     phone:      ['phone','tel','telephone','phonenumber','contactphone','contact_phone'],
-    email:      ['email','emailaddress','mail'],
+    email:      ['email','emailaddress','mail','emailemailsvalidatorstatus'],
     website:    ['website','web','url','site','domain'],
     address:    ['address','streetaddress','street','fulladdress'],
     city:       ['city','town'],
@@ -1048,6 +1049,16 @@ function doImport() {
     const cols=parseCSVLine(lines[i]);
     if (cols.every(c=>!c)) continue;
     const get=f=>idx[f]!==undefined?(cols[idx[f]]||''): '';
+    // Email fallback: scan all cols for @domain pattern if email col is empty
+    const getEmail=()=>{
+      const direct=get('email');
+      if(direct && direct.includes('@') && !direct.includes('INVALID') && !direct.includes('UNKNOWN')) return direct;
+      for(let ci=0;ci<cols.length;ci++){
+        const v=cols[ci];
+        if(v && v.includes('@') && v.includes('.') && !v.includes('INVALID') && !v.includes('UNKNOWN') && v.length<80) return v;
+      }
+      return '';
+    };
 
     // Resolve name: prefer first+last, fall back to splitting fullname
     let firstname = get('firstname');
@@ -1070,7 +1081,7 @@ function doImport() {
       firstname, lastname,
       practice:get('practice')||get('fullname')||'',
       phone:get('phone'),
-      email:get('email'),
+      email:getEmail(),
       website:get('website')||get('domain')||'',
       address:get('address'), city:get('city')||'Louisville',
       zip:get('zip'),
