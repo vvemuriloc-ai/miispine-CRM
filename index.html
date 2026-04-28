@@ -1080,9 +1080,27 @@ function doImport() {
       id:genId(), type:activeTab,
       firstname, lastname,
       practice:get('practice')||get('fullname')||'',
-      phone:get('phone'),
+      phone:(()=>{
+        const p=get('phone')||get('contact_phone')||'';
+        // Reject non-phone values (carrier names, 'landline', 'mobile', 'voip' etc)
+        if(!p || p.toLowerCase()==='landline' || p.toLowerCase()==='mobile' || 
+           p.toLowerCase()==='voip' || p.toLowerCase()==='fixed line' ||
+           p.toLowerCase()==='toll_free' || !p.match(/[0-9]/)) return '';
+        return p;
+      })(),
       email:getEmail(),
-      website:get('website')||get('domain')||'',
+      website:(()=>{
+        const w=get('website')||get('domain')||'';
+        // Only accept real URLs, reject carrier names like "Bandwidth.com", "T-Mobile USA Inc."
+        if(!w) return '';
+        if(w.toLowerCase().includes('bandwidth') || w.toLowerCase().includes('t-mobile') ||
+           w.toLowerCase().includes('cingular') || w.toLowerCase().includes('verizon') ||
+           w.toLowerCase().includes('at&t') || w.toLowerCase().includes('sprint') ||
+           w.toLowerCase().includes('inc.') || w.toLowerCase().includes('llc') ||
+           w.toLowerCase().includes('time warner') || w.toLowerCase().includes('comcast') ||
+           (!w.includes('.') || w.length > 100)) return '';
+        return w;
+      })(),
       address:get('address'), city:get('city')||'Louisville',
       zip:get('zip'),
       source: activeTab==='chiro' ? 'Google Maps' : 'Apollo.io',
