@@ -1020,100 +1020,110 @@ function doImport() {
     return result.map(v=>v.replace(/^"|"$/g,'').replace(/""/g,'"'));
   }
 
-  const header = parseCSVLine(lines[0]).map(h=>h.toLowerCase().replace(/[^a-z0-9]/g,''));
-  const colMap = {
-    firstname:  ['firstname','first','fname','first_name'],
-    lastname:   ['lastname','last','lname','last_name'],
-    fullname:   ['fullname','full_name','nameforemails','name_for_emails'],
-    practice:   ['practice','firm','practicename','firmname','company','companyname','company_name','name'],
-    phone:      ['phone','tel','telephone','phonenumber','contactphone','contact_phone'],
-    email:      ['email','emailaddress','mail','emailemailsvalidatorstatus'],
-    website:    ['website','web','url','site','domain'],
-    address:    ['address','streetaddress','street','fulladdress'],
-    city:       ['city','town'],
-    zip:        ['zip','zipcode','postal','postalcode','postalcode','postal_code'],
-    priority:   ['priority'],
-    notes:      ['notes','note','comments','description']
-  };
-  const idx={};
-  for (const [field,aliases] of Object.entries(colMap)) {
-    for (let i=0;i<header.length;i++) {
-      if (aliases.includes(header[i])) { idx[field]=i; break; }
+  const rawHeaders = parseCSVLine(lines[0]);
+  const header = rawHeaders.map(h=>h.toLowerCase().replace(/[^a-z0-9_]/g,''));
+
+  function findCol() {
+    const names = Array.from(arguments);
+    for (const name of names) {
+      const clean = name.toLowerCase().replace(/[^a-z0-9_]/g,'');
+      const i = header.indexOf(clean);
+      if (i >= 0) return i;
     }
+    return -1;
   }
 
-  // Deduplicate by phone or name+address
+  const idx = {
+    firstname:    findCol('first_name','firstname','fname'),
+    lastname:     findCol('last_name','lastname','lname'),
+    fullname:     findCol('full_name','name_for_emails','fullname'),
+    name:         findCol('name'),
+    practice:     findCol('company_name','practice','firm'),
+    phone:        findCol('phone'),
+    contactphone: findCol('contact_phone'),
+    email:        findCol('email'),
+    emailstatus:  findCol('email.emails_validator.status','emailemailsvalidatorstatus'),
+    website:      findCol('website'),
+    domain:       findCol('domain'),
+    street:       findCol('street'),
+    address:      findCol('address'),
+    city:         findCol('city'),
+    zip:          findCol('postal_code','zip','zipcode'),
+    rating:       findCol('rating'),
+  };
+
+  const carrierWords = ['bandwidth','t-mobile','tmobile','cingular','verizon','at&t',
+    'sprint','time warner','comcast','charter','centurylink','windstream',
+    'wireless pcs','llc','inc.','usa inc','pcs,'];
+
   const seen = new Set();
   let added=0, skipped=0;
-  for (let i=1;i<lines.length;i++) {
-    const cols=parseCSVLine(lines[i]);
-    if (cols.every(c=>!c)) continue;
-    const get=f=>idx[f]!==undefined?(cols[idx[f]]||''): '';
-    // Email fallback: scan all cols for @domain pattern if email col is empty
-    const getEmail=()=>{
-      const direct=get('email');
-      if(direct && direct.includes('@') && !direct.includes('INVALID') && !direct.includes('UNKNOWN')) return direct;
-      for(let ci=0;ci<cols.length;ci++){
-        const v=cols[ci];
-        if(v && v.includes('@') && v.includes('.') && !v.includes('INVALID') && !v.includes('UNKNOWN') && v.length<80) return v;
-      }
-      return '';
-    };
 
-    // Resolve name: prefer first+last, fall back to splitting fullname
-    let firstname = get('firstname');
-    let lastname   = get('lastname');
+  for (let i=1;i<lines.length;i++) {
+    const cols = parseCSVLine(lines[i]);
+    if (cols.every(function(c){return !c;})) continue;
+    const get = function(ci) { return (ci >= 0 && ci < cols.length) ? (cols[ci]||'') : ''; };
+
+    let firstname = get(idx.firstname);
+    let lastname   = get(idx.lastname);
     if (!firstname && !lastname) {
-      const full = get('fullname') || get('practice') || '';
-      const parts = full.trim().split(/\s+/);
+      const full = get(idx.fullname) || get(idx.name) || '';
+      const parts = full.trim().split(' ');
       firstname = parts[0] || '';
       lastname  = parts.slice(1).join(' ') || '';
     }
 
-    // Deduplicate key: phone or name+city
-    const phone = get('phone').replace(/\D/g,'');
-    const dedupeKey = phone || (firstname+lastname+get('city')).toLowerCase().replace(/\s/g,'');
-    if (dedupeKey && seen.has(dedupeKey)) { skipped++; continue; }
-    if (dedupeKey) seen.add(dedupeKey);
+    const practice = get(idx.practice) || get(idx.name) || '';
+    const rawPhone = get(idx.contactphone) || get(idx.phone) || '';
+    const phoneDigits = rawPhone.replace(/[^0-9]/g,'');
+    const phone = phoneDigits.length >= 7 ? rawPhone : '';
+
+    const emailStatus = get(idx.emailstatus).toUpperCase();
+    const rawEmail = get(idx.email);
+    const emailBad = emailStatus.indexOf('INVALID')>=0 || emailStatus.indexOf('UNKNOWN')>=0 ||
+                     emailStatus.indexOf('CANNOT')>=0 || emailStatus.indexOf('UNDELIVERABLE')>=0;
+    const email = (rawEmail.indexOf('@')>=0 && !emailBad) ? rawEmail : '';
+
+    const rawSite   = get(idx.website);
+    const rawDomain = get(idx.domain);
+    const isCarrier = function(s) {
+      const sl = s.toLowerCase();
+      for (let ci=0;ci<carrierWords.length;ci++) { if (sl.indexOf(carrierWords[ci])>=0) return true; }
+      return false;
+    };
+    const website =
+      (rawSite && !isCarrier(rawSite) && rawSite.indexOf('.')>=0 && rawSite.length < 100) ? rawSite :
+      (rawDomain && !isCarrier(rawDomain) && rawDomain.indexOf('.')>=0 && rawDomain.length < 80) ? rawDomain : '';
+
+    const street = get(idx.street) || get(idx.address) || '';
+    const city   = get(idx.city) || 'Louisville';
+    const zip    = get(idx.zip) || '';
+
+    const dedupeKey = phoneDigits || (firstname+lastname+city).toLowerCase().replace(/ /g,'');
+    if (dedupeKey && seen[dedupeKey]) { skipped++; continue; }
+    if (dedupeKey) seen[dedupeKey] = true;
+
+    const rating = parseFloat(get(idx.rating)) || 0;
+    const priority = rating >= 4.5 ? 'High' : rating >= 4.0 ? 'Medium' : 'Low';
 
     contacts.push({
       id:genId(), type:activeTab,
-      firstname, lastname,
-      practice:get('practice')||get('fullname')||'',
-      phone:(()=>{
-        const p=get('phone')||get('contact_phone')||'';
-        // Reject non-phone values (carrier names, 'landline', 'mobile', 'voip' etc)
-        if(!p || p.toLowerCase()==='landline' || p.toLowerCase()==='mobile' || 
-           p.toLowerCase()==='voip' || p.toLowerCase()==='fixed line' ||
-           p.toLowerCase()==='toll_free' || !p.match(/[0-9]/)) return '';
-        return p;
-      })(),
-      email:getEmail(),
-      website:(()=>{
-        const w=get('website')||get('domain')||'';
-        // Only accept real URLs, reject carrier names like "Bandwidth.com", "T-Mobile USA Inc."
-        if(!w) return '';
-        if(w.toLowerCase().includes('bandwidth') || w.toLowerCase().includes('t-mobile') ||
-           w.toLowerCase().includes('cingular') || w.toLowerCase().includes('verizon') ||
-           w.toLowerCase().includes('at&t') || w.toLowerCase().includes('sprint') ||
-           w.toLowerCase().includes('inc.') || w.toLowerCase().includes('llc') ||
-           w.toLowerCase().includes('time warner') || w.toLowerCase().includes('comcast') ||
-           (!w.includes('.') || w.length > 100)) return '';
-        return w;
-      })(),
-      address:get('address'), city:get('city')||'Louisville',
-      zip:get('zip'),
+      firstname:firstname, lastname:lastname, practice:practice,
+      phone:phone, email:email, website:website,
+      address:street, city:city, zip:zip,
       source: activeTab==='chiro' ? 'Google Maps' : 'Apollo.io',
-      priority:get('priority')||'Medium',
-      notes:get('notes'), touch:1, completed:false,
+      priority:priority,
+      notes:'', touch:1, completed:false,
       nextActionDate:todayStr(), lastContactDate:'', createdAt:todayStr()
     });
     added++;
   }
+
   renderTable(); closeImportModal();
   scheduleSave();
-  alert(`✓ Imported ${added} contact${added!==1?'s':''}${skipped>0?' ('+skipped+' duplicates skipped)':''} — saving to Google Sheets...`);
+  alert('Imported ' + added + ' contact' + (added!==1?'s':'') + (skipped>0?' ('+skipped+' duplicates skipped)':'') + ' - saving to Google Sheets...');
 }
+
 
 // ── MODAL ─────────────────────────────────────────────────────────────
 function openAddModal() {
