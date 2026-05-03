@@ -1088,10 +1088,8 @@ async function runImport() {
 
     const crmSheet = type === 'chiro' ? CHIRO_SHEET : PI_SHEET;
 
-    // Append each contact via Apps Script
-    for (const c of newContacts) {
-      await scriptPost({ action: 'append', sheet: crmSheet, values: contactToRow(c) });
-    }
+    // Batch append all contacts in a single request
+    await scriptPost({ action: 'batchAppend', sheet: crmSheet, values: newContacts.map(c => contactToRow(c)) });
 
     contacts.push(...newContacts);
     renderTable(); updateStats();
