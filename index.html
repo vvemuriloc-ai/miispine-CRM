@@ -530,13 +530,16 @@ async function loadFromSheets() {
     await initSheets();
 
     const [chiroRes, piRes] = await Promise.all([
-      fetch(`${BASE_URL}/values/${encodeURIComponent(CHIRO_SHEET + '!A1:Z1000')}?key=${API_KEY}`).then(r => r.json()),
-      fetch(`${BASE_URL}/values/${encodeURIComponent(PI_SHEET + '!A1:Z1000')}?key=${API_KEY}`).then(r => r.json())
+      fetch(`${BASE_URL}/values/${encodeURIComponent(CHIRO_SHEET + '!A2:S1000')}?key=${API_KEY}`).then(r => r.json()),
+      fetch(`${BASE_URL}/values/${encodeURIComponent(PI_SHEET + '!A2:S1000')}?key=${API_KEY}`).then(r => r.json())
     ]);
 
+    const chiroRows = chiroRes.values || [];
+    const piRows    = piRes.values   || [];
+
     contacts = [
-      ...parseCRMSheet(chiroRes.values || [], 'chiro'),
-      ...parseCRMSheet(piRes.values || [], 'pi')
+      ...chiroRows.filter(r => r.some(c => c)).map(r => rowToContact(r, 'chiro', null)),
+      ...piRows.filter(r => r.some(c => c)).map(r => rowToContact(r, 'pi', null))
     ];
 
     setSyncStatus('ok', 'Synced with Google Sheets');
