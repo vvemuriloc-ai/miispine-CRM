@@ -21,36 +21,19 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(--dark); min-height: 100vh; display: flex; flex-direction: column; }
 
-body {
-  font-family: 'DM Sans', sans-serif;
-  background: var(--dark);
-  color: var(--dark);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.app-header {
-  background: var(--dark);
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-  padding: 14px 28px;
-  display: flex; align-items: center; gap: 16px; flex-shrink: 0;
-}
-.logo-mark {
-  width: 34px; height: 34px; background: var(--orange); border-radius: 7px;
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'Cormorant Garamond', serif; font-size: 17px; font-weight: 700; color: white;
-}
+/* HEADER */
+.app-header { background: var(--dark); border-bottom: 1px solid rgba(255,255,255,0.08); padding: 14px 28px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+.logo-mark { width: 34px; height: 34px; background: var(--orange); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-family: 'Cormorant Garamond', serif; font-size: 17px; font-weight: 700; color: white; }
 .app-title { font-family: 'Cormorant Garamond', serif; font-size: 19px; font-weight: 600; color: white; }
 .app-title span { color: var(--orange); }
-.sync-status {
-  margin-left: 12px; font-size: 11px; font-weight: 500;
-  padding: 3px 10px; border-radius: 12px; transition: all 0.3s;
-}
-.sync-ok { background: rgba(147,210,195,0.15); color: var(--teal); }
-.sync-saving { background: rgba(240,78,35,0.15); color: var(--orange); }
-.sync-error { background: rgba(192,57,43,0.15); color: #E74C3C; }
+.sync-status { font-size: 11px; color: rgba(255,255,255,0.4); display: flex; align-items: center; gap: 6px; }
+.sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex-shrink: 0; transition: background 0.3s; }
+.sync-dot.syncing { background: var(--yellow); animation: pulse 1s infinite; }
+.sync-dot.ok { background: var(--teal); }
+.sync-dot.error { background: var(--red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 .header-stats { margin-left: auto; display: flex; gap: 20px; }
 .hstat { text-align: center; }
 .hstat-num { font-family: 'DM Mono', monospace; font-size: 18px; font-weight: 500; color: white; line-height: 1; }
@@ -59,265 +42,151 @@ body {
 .hstat-num.due { color: var(--orange); }
 .hstat-num.ok { color: var(--teal); }
 
-.tab-bar {
-  background: var(--dark); display: flex;
-  border-bottom: 1px solid rgba(255,255,255,0.08); padding: 0 28px;
-}
-.tab-btn {
-  padding: 10px 22px; background: transparent; border: none;
-  border-bottom: 2px solid transparent;
-  font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
-  color: rgba(255,255,255,0.45); cursor: pointer; transition: all 0.15s; margin-bottom: -1px;
-}
+/* TABS */
+.tab-bar { background: var(--dark); display: flex; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 0 28px; }
+.tab-btn { padding: 10px 22px; background: transparent; border: none; border-bottom: 2px solid transparent; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.45); cursor: pointer; transition: all 0.15s; margin-bottom: -1px; }
 .tab-btn:hover { color: rgba(255,255,255,0.75); }
 .tab-btn.active { color: white; border-bottom-color: var(--orange); }
 
-.toolbar {
-  background: var(--light-sand); border-bottom: 1px solid var(--border);
-  padding: 10px 24px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-}
-.filter-group {
-  display: flex; gap: 3px; background: white;
-  border: 1px solid var(--border); border-radius: 8px; padding: 3px;
-}
-.filter-btn {
-  padding: 5px 12px; border: none; background: transparent; border-radius: 6px;
-  font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500;
-  color: var(--mid); cursor: pointer; transition: all 0.15s;
-}
+/* TOOLBAR */
+.toolbar { background: var(--light-sand); border-bottom: 1px solid var(--border); padding: 10px 24px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.filter-group { display: flex; gap: 3px; background: white; border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+.filter-btn { padding: 5px 12px; border: none; background: transparent; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--mid); cursor: pointer; transition: all 0.15s; }
 .filter-btn.active { background: var(--orange); color: white; }
-.search-box {
-  flex: 1; min-width: 160px; padding: 7px 12px;
-  border: 1px solid var(--border); border-radius: 8px;
-  font-family: 'DM Sans', sans-serif; font-size: 13px;
-  background: white; color: var(--dark); outline: none;
-}
+.search-box { flex: 1; min-width: 160px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; background: white; color: var(--dark); outline: none; }
 .search-box:focus { border-color: var(--orange); }
-.toolbar-btn {
-  padding: 7px 16px; border: none; border-radius: 8px;
-  font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600;
-  cursor: pointer; transition: opacity 0.15s; white-space: nowrap;
-}
+.toolbar-btn { padding: 7px 16px; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; white-space: nowrap; }
 .btn-add { background: var(--orange); color: white; }
-.btn-export { background: var(--dark); color: white; }
-.btn-import { background: white; color: var(--dark); border: 1px solid var(--border); }
-.btn-refresh { background: rgba(147,210,195,0.2); color: #2A7A6A; border: 1px solid rgba(147,210,195,0.4); }
+.btn-refresh { background: white; color: var(--dark); border: 1px solid var(--border); }
 .toolbar-btn:hover { opacity: 0.85; }
+.btn-import { background: #2A7A6A; color: white; }
 
+/* MAIN */
 .main-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
 
+/* TABLE */
 .table-panel { flex: 1; overflow: auto; background: var(--light-sand); }
-.contact-table { width: 100%; border-collapse: collapse; min-width: 900px; }
-.contact-table thead th {
-  position: sticky; top: 0; background: var(--sand);
-  padding: 9px 14px; text-align: left;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--mid); border-bottom: 1px solid var(--border); white-space: nowrap; z-index: 2;
-}
+.contact-table { width: 100%; border-collapse: collapse; min-width: 860px; }
+.contact-table thead th { position: sticky; top: 0; background: var(--sand); padding: 9px 14px; text-align: left; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mid); border-bottom: 1px solid var(--border); white-space: nowrap; z-index: 2; }
 .contact-table tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s; }
 .contact-table tbody tr:hover { background: white; }
 .contact-table tbody tr.selected { background: white; box-shadow: inset 3px 0 0 var(--orange); }
 .contact-table td { padding: 10px 14px; font-size: 12px; color: var(--dark); vertical-align: middle; }
-
-.type-badge {
-  display: inline-block; padding: 2px 8px; border-radius: 12px;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-}
+.contact-name { font-weight: 600; font-size: 13px; }
+.contact-sub { font-size: 11px; color: var(--mid); margin-top: 1px; }
+.type-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .type-chiro { background: rgba(147,210,195,0.25); color: #2A7A6A; }
 .type-pi { background: rgba(240,78,35,0.12); color: var(--orange); }
-
 .touch-pips { display: inline-flex; align-items: center; gap: 4px; }
 .tp { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
 .tp.done { background: var(--teal); }
 .tp.current { background: var(--orange); }
-
 .status-overdue { color: var(--red); font-size: 11px; font-weight: 600; }
 .status-due { color: var(--yellow); font-size: 11px; font-weight: 600; }
 .status-ok { color: var(--green); font-size: 11px; }
 .status-complete { color: var(--mid); font-size: 11px; }
-
-.contact-name { font-weight: 600; font-size: 13px; }
-.contact-sub { font-size: 11px; color: var(--mid); margin-top: 1px; }
-
-.action-cell { display: flex; gap: 5px; align-items: center; }
-.icon-btn {
-  padding: 3px 8px; border: 1px solid var(--border);
-  background: white; border-radius: 5px; font-size: 11px; cursor: pointer;
-  font-family: 'DM Sans', sans-serif; color: var(--mid); transition: all 0.12s;
-}
-.icon-btn:hover { border-color: var(--orange); color: var(--orange); }
-.icon-btn.advance { background: var(--orange); color: white; border-color: var(--orange); }
-.icon-btn.advance:hover { opacity: 0.85; }
-
 .priority-high { color: var(--red); font-weight: 700; font-size: 11px; }
 .priority-med { color: var(--yellow); font-weight: 600; font-size: 11px; }
 .priority-low { color: var(--mid); font-size: 11px; }
+.action-cell { display: flex; gap: 5px; align-items: center; }
+.icon-btn { padding: 3px 8px; border: 1px solid var(--border); background: white; border-radius: 5px; font-size: 11px; cursor: pointer; font-family: 'DM Sans', sans-serif; color: var(--mid); transition: all 0.12s; }
+.icon-btn:hover { border-color: var(--orange); color: var(--orange); }
+.icon-btn.advance { background: var(--orange); color: white; border-color: var(--orange); }
 
-.detail-panel {
-  width: 400px; flex-shrink: 0; background: white;
-  border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto;
-}
-.detail-empty {
-  flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 10px; color: var(--mid); padding: 40px; text-align: center;
-}
+/* DETAIL PANEL */
+.detail-panel { width: 400px; flex-shrink: 0; background: white; border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+.detail-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--mid); padding: 40px; text-align: center; }
 .detail-empty .empty-icon { font-size: 32px; opacity: 0.3; }
 .detail-empty p { font-size: 13px; opacity: 0.6; line-height: 1.5; }
-
-.detail-header {
-  padding: 18px 20px 14px; border-bottom: 1px solid var(--border); background: var(--light-sand);
-}
+.detail-header { padding: 18px 20px 14px; border-bottom: 1px solid var(--border); background: var(--light-sand); }
 .detail-name { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; color: var(--dark); margin: 6px 0 2px; }
 .detail-practice { font-size: 12px; color: var(--mid); }
 .detail-meta { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
 .detail-meta-row { display: flex; gap: 8px; align-items: center; font-size: 12px; }
-.detail-meta-label { color: var(--mid); min-width: 58px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
-.detail-meta-val { color: var(--dark); }
-.detail-meta-val a { color: var(--orange); text-decoration: none; }
+.dml { color: var(--mid); min-width: 58px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
+.dmv { color: var(--dark); }
+.dmv a { color: var(--orange); text-decoration: none; }
 
+/* TOUCH PROGRESS */
 .touch-progress { padding: 14px 20px; border-bottom: 1px solid var(--border); }
 .tp-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--mid); margin-bottom: 12px; }
 .tp-steps { display: flex; align-items: flex-start; margin-bottom: 12px; }
 .tp-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; }
 .tp-step::after { content: ''; position: absolute; left: 50%; top: 14px; width: 100%; height: 2px; background: var(--border); z-index: 0; }
 .tp-step:last-child::after { display: none; }
-.tp-circle {
-  width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); background: white;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; color: var(--mid); position: relative; z-index: 1; transition: all 0.2s;
-}
+.tp-circle { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); background: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--mid); position: relative; z-index: 1; }
 .tp-step.done .tp-circle { background: var(--teal); border-color: var(--teal); color: white; }
 .tp-step.current .tp-circle { background: var(--orange); border-color: var(--orange); color: white; }
 .tp-step-label { font-size: 9px; color: var(--mid); text-align: center; line-height: 1.3; max-width: 70px; }
 .tp-step.current .tp-step-label { color: var(--orange); font-weight: 600; }
 .tp-step.done .tp-step-label { color: var(--teal); }
-.advance-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
-.advance-full-btn {
-  flex: 1; padding: 8px; background: var(--orange); color: white; border: none;
-  border-radius: 7px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600;
-  cursor: pointer; transition: opacity 0.15s;
-}
-.advance-full-btn:hover { opacity: 0.85; }
+.advance-row { display: flex; gap: 8px; margin-top: 4px; }
+.advance-full-btn { flex: 1; padding: 8px; background: var(--orange); color: white; border: none; border-radius: 7px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; }
 .advance-full-btn:disabled { background: var(--border); color: var(--mid); cursor: default; }
-.complete-btn {
-  padding: 8px 12px; background: white; border: 1px solid var(--border); border-radius: 7px;
-  font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--mid); cursor: pointer; transition: all 0.15s;
-}
-.complete-btn:hover { border-color: var(--teal); color: var(--teal); }
+.complete-btn { padding: 8px 12px; background: white; border: 1px solid var(--border); border-radius: 7px; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--mid); cursor: pointer; }
 
+/* SECTIONS */
 .detail-section { padding: 14px 20px; border-bottom: 1px solid var(--border); }
 .section-hdr { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--mid); margin-bottom: 10px; }
-.notes-area {
-  width: 100%; min-height: 60px; padding: 9px 11px;
-  border: 1px solid var(--border); border-radius: 7px;
-  font-family: 'DM Sans', sans-serif; font-size: 12px;
-  color: var(--dark); resize: vertical; outline: none; line-height: 1.5;
-}
+.notes-area { width: 100%; min-height: 60px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 7px; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--dark); resize: vertical; outline: none; line-height: 1.5; }
 .notes-area:focus { border-color: var(--orange); }
-.save-btn {
-  margin-top: 6px; padding: 5px 14px; background: var(--dark); color: white; border: none;
-  border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600;
-  cursor: pointer; transition: background 0.15s;
-}
+.save-btn { margin-top: 6px; padding: 5px 14px; background: var(--dark); color: white; border: none; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; }
 .save-btn:hover { background: var(--orange); }
-
 .email-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; }
-.copy-email-btn {
-  padding: 5px 12px; background: var(--dark); color: white; border: none; border-radius: 6px;
-  font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; transition: background 0.15s;
-}
+.copy-email-btn { padding: 5px 12px; background: var(--dark); color: white; border: none; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; }
 .copy-email-btn:hover { background: var(--orange); }
 .copy-email-btn.copied { background: var(--green); }
-.email-subject {
-  font-size: 11px; font-weight: 600; color: var(--orange);
-  margin-bottom: 8px; padding: 7px 10px; background: var(--light-sand);
-  border-radius: 5px; border-left: 3px solid var(--orange);
-}
+.email-subject { font-size: 11px; font-weight: 600; color: var(--orange); margin-bottom: 8px; padding: 7px 10px; background: var(--light-sand); border-radius: 5px; border-left: 3px solid var(--orange); }
 .email-subject span { font-weight: 400; color: var(--mid); font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 2px; }
-.email-body-preview {
-  font-size: 11px; color: var(--dark); line-height: 1.7; white-space: pre-wrap;
-  background: var(--light-sand); border: 1px solid var(--border);
-  border-radius: 7px; padding: 11px 13px; max-height: 280px; overflow-y: auto;
-}
+.email-body-preview { font-size: 11px; color: var(--dark); line-height: 1.7; white-space: pre-wrap; background: var(--light-sand); border: 1px solid var(--border); border-radius: 7px; padding: 11px 13px; max-height: 280px; overflow-y: auto; }
 .epl { background: rgba(147,210,195,0.35); border-radius: 3px; padding: 0 2px; color: #1A5C50; font-weight: 500; }
 
-/* Loading overlay */
-.loading-overlay {
-  position: fixed; inset: 0; background: rgba(26,20,16,0.85);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  z-index: 200; gap: 16px;
-}
+/* LOADING */
+.loading-overlay { position: fixed; inset: 0; background: rgba(26,20,16,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; gap: 16px; }
 .loading-overlay.hidden { display: none; }
-.spinner {
-  width: 40px; height: 40px; border: 3px solid rgba(240,78,35,0.2);
-  border-top-color: var(--orange); border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
+.spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--orange); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.loading-text { color: white; font-size: 14px; font-weight: 500; }
+.loading-text { color: white; font-size: 14px; opacity: 0.7; }
 
-/* Modal */
-.modal-overlay {
-  position: fixed; inset: 0; background: rgba(26,20,16,0.75);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 100; backdrop-filter: blur(4px);
-}
+/* MODAL */
+.modal-overlay { position: fixed; inset: 0; background: rgba(26,20,16,0.75); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(4px); }
 .modal-overlay.hidden { display: none; }
-.modal {
-  background: white; border-radius: 14px; padding: 26px 28px;
-  width: 560px; max-width: 96vw; max-height: 90vh; overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-}
+.modal { background: white; border-radius: 14px; padding: 26px 28px; width: 560px; max-width: 96vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
 .modal h3 { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; color: var(--dark); margin-bottom: 18px; }
-.modal-section-label {
-  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
-  font-weight: 700; color: var(--orange); margin: 16px 0 10px;
-  padding-bottom: 6px; border-bottom: 1px solid var(--border);
-}
+.modal-section-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; color: var(--orange); margin: 16px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .form-field { display: flex; flex-direction: column; gap: 4px; }
 .form-field.full { grid-column: 1 / -1; }
 .form-field label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mid); }
-.form-field input, .form-field select, .form-field textarea {
-  padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px;
-  font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--dark); outline: none; background: white;
-}
+.form-field input, .form-field select, .form-field textarea { padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--dark); outline: none; background: white; }
 .form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: var(--orange); }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
-.modal-cancel {
-  padding: 9px 20px; background: white; color: var(--mid); border: 1px solid var(--border);
-  border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer;
-}
-.modal-save {
-  padding: 9px 24px; background: var(--orange); color: white; border: none;
-  border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer;
-}
-
+.modal-cancel { padding: 9px 20px; background: white; color: var(--mid); border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; }
+.modal-save { padding: 9px 24px; background: var(--orange); color: white; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
 .empty-state { text-align: center; padding: 60px 20px; color: var(--mid); }
 .empty-state p { font-size: 14px; margin-top: 8px; }
 
-.import-area {
-  width: 100%; min-height: 120px; padding: 10px 12px;
-  border: 1px dashed var(--border); border-radius: 8px;
-  font-family: 'DM Mono', monospace; font-size: 11px;
-  color: var(--dark); resize: vertical; outline: none; line-height: 1.5;
-}
-.import-area:focus { border-color: var(--orange); }
-.import-note { font-size: 11px; color: var(--mid); margin-top: 8px; line-height: 1.5; }
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--dark); color: white; padding: 10px 20px; border-radius: 8px; font-size: 13px; z-index: 300; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+.toast.show { opacity: 1; }
 </style>
 </head>
 <body>
 
+<!-- LOADING -->
 <div class="loading-overlay" id="loading-overlay">
   <div class="spinner"></div>
   <div class="loading-text" id="loading-text">Connecting to Google Sheets...</div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <div class="app-header">
   <div class="logo-mark">m</div>
   <div class="app-title">mii<span>Spine</span> Outreach CRM</div>
-  <div class="sync-status sync-ok" id="sync-status">● Connected</div>
+  <div class="sync-status">
+    <div class="sync-dot" id="sync-dot"></div>
+    <span id="sync-label">Connecting...</span>
+  </div>
   <div class="header-stats">
     <div class="hstat"><div class="hstat-num overdue" id="stat-overdue">0</div><div class="hstat-label">Overdue</div></div>
     <div class="hstat"><div class="hstat-num due" id="stat-due">0</div><div class="hstat-label">Due Today</div></div>
@@ -347,8 +216,7 @@ body {
   </div>
   <input class="search-box" type="text" placeholder="Search name, practice, address..." oninput="setSearch(this.value)">
   <button class="toolbar-btn btn-refresh" onclick="loadFromSheets()">↻ Refresh</button>
-  <button class="toolbar-btn btn-import" onclick="openImportModal()">↑ Import CSV</button>
-  <button class="toolbar-btn btn-export" onclick="exportCSV()">↓ Export CSV</button>
+  <button class="toolbar-btn btn-import" onclick="openImportModal()">⬇ Import Outscraper</button>
   <button class="toolbar-btn btn-add" onclick="openAddModal()">+ Add Contact</button>
 </div>
 
@@ -373,18 +241,15 @@ body {
     </table>
     <div id="empty-state" class="empty-state hidden">
       <div style="font-size:32px">📋</div>
-      <p>No contacts yet.<br>Click <strong>+ Add Contact</strong> or <strong>↑ Import CSV</strong> to get started.</p>
+      <p>No contacts yet.<br>Click <strong>+ Add Contact</strong> to get started.</p>
     </div>
   </div>
   <div class="detail-panel" id="detail-panel">
-    <div class="detail-empty">
-      <div class="empty-icon">←</div>
-      <p>Select a contact to view their profile, sequence progress, and email template.</p>
-    </div>
+    <div class="detail-empty"><div class="empty-icon">←</div><p>Select a contact to view their profile, sequence progress, and email template.</p></div>
   </div>
 </div>
 
-<!-- ADD/EDIT MODAL -->
+<!-- MODAL -->
 <div class="modal-overlay hidden" id="modal-overlay">
   <div class="modal">
     <h3 id="modal-title">Add Contact</h3>
@@ -399,7 +264,7 @@ body {
     <div class="modal-section-label">Contact Info</div>
     <div class="form-grid">
       <div class="form-field"><label>Phone</label><input type="text" id="f-phone" placeholder="(502) 555-0100"></div>
-      <div class="form-field"><label>Email</label><input type="email" id="f-email" placeholder="dr.smith@practice.com"></div>
+      <div class="form-field"><label>Email</label><input type="email" id="f-email" placeholder="dr@practice.com"></div>
       <div class="form-field full"><label>Website</label><input type="text" id="f-website" placeholder="louisvillechiro.com"></div>
     </div>
     <div class="modal-section-label">Location</div>
@@ -412,7 +277,7 @@ body {
     <div class="form-grid">
       <div class="form-field"><label>Source</label><select id="f-source"><option value="">— Select —</option><option value="Google Maps">Google Maps</option><option value="Apollo.io">Apollo.io</option><option value="Referral">Referral</option><option value="Manual">Manual</option></select></div>
       <div class="form-field"><label>Next Action Date</label><input type="date" id="f-nextdate"></div>
-      <div class="form-field full"><label>Notes</label><textarea id="f-notes" rows="2" placeholder="Personal details, shared connections, anything useful..."></textarea></div>
+      <div class="form-field full"><label>Notes</label><textarea id="f-notes" rows="2" placeholder="Personal details, shared connections..."></textarea></div>
     </div>
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeModal()">Cancel</button>
@@ -422,18 +287,27 @@ body {
 </div>
 
 <!-- IMPORT MODAL -->
-<div class="modal-overlay hidden" id="import-overlay">
+<div class="modal-overlay hidden" id="import-modal-overlay">
   <div class="modal">
-    <h3>Import from CSV</h3>
-    <p style="font-size:13px;color:var(--mid);margin-bottom:14px;line-height:1.6">
-      Paste CSV data from Outscraper, Apollo, or any spreadsheet export.<br>
-      Expected columns: <strong>First Name, Last Name, Practice, Phone, Email, Website, Address, City, Zip, Priority, Notes</strong>
-    </p>
-    <textarea class="import-area" id="import-textarea" placeholder="First Name,Last Name,Practice,Phone,Email,Website,Address,City,Zip,Priority,Notes&#10;John,Smith,Louisville Chiro,(502) 555-0100,john@louchiro.com,louchiro.com,123 Main St,Louisville,40205,High,"></textarea>
-    <div class="import-note">💡 In Excel/Google Sheets: select all → Copy → paste here.</div>
+    <h3>Import from Outscraper</h3>
+    <p style="font-size:13px;color:var(--mid);margin-bottom:16px;line-height:1.5">Reads a tab in your Google Sheet that contains raw Outscraper data and maps the columns automatically. The tab name must match exactly.</p>
+    <div class="modal-section-label">Source Sheet Tab</div>
+    <div class="form-grid">
+      <div class="form-field full"><label>Tab Name in Google Sheets</label><input type="text" id="imp-tabname" placeholder="e.g. Louisville Chiros or Sheet1"></div>
+      <div class="form-field"><label>Import as Contact Type</label><select id="imp-type"><option value="chiro">Chiropractor</option><option value="pi">PI Attorney</option></select></div>
+      <div class="form-field"><label>Default Priority</label><select id="imp-priority"><option value="Medium">Medium</option><option value="High">High</option><option value="Low">Low</option></select></div>
+    </div>
+    <div class="modal-section-label">Column Overrides <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px">(leave blank to auto-detect)</span></div>
+    <div class="form-grid">
+      <div class="form-field"><label>Email Column Header</label><input type="text" id="imp-col-email" placeholder="email / email_1 / Email"></div>
+      <div class="form-field"><label>Phone Column Header</label><input type="text" id="imp-col-phone" placeholder="phone / Phone"></div>
+      <div class="form-field"><label>Name Column Header</label><input type="text" id="imp-col-name" placeholder="name / Business Name"></div>
+      <div class="form-field"><label>Website Column Header</label><input type="text" id="imp-col-site" placeholder="site / website"></div>
+    </div>
+    <div id="import-status" style="font-size:12px;color:var(--mid);margin-top:12px;min-height:18px"></div>
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeImportModal()">Cancel</button>
-      <button class="modal-save" onclick="doImport()">Import Contacts</button>
+      <button class="modal-save" onclick="runImport()">Import Contacts</button>
     </div>
   </div>
 </div>
@@ -444,12 +318,13 @@ const SHEET_ID = '1-qdfnwAP9siadhB_ePkwNt0Nm7K4AZXuei2ZCWTW2k0';
 const API_KEY  = 'AIzaSyAAqpieBssS21pv8zOesFnpBOR-VYIP4V4';
 const BASE_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`;
 
-// Sheet tab names — will be created on first write if missing
-const SHEETS = { chiro: 'Louisville Chiropractors', pi: 'Louisville PI Attorneys' };
+// Sheet tab names — must match exactly in Google Sheets
+const CHIRO_SHEET = 'Chiropractors';
+const PI_SHEET    = 'PI Attorneys';
 
-// Column order stored in sheet
-const COLS = ['id','type','firstname','lastname','practice','priority','phone','email',
-              'website','address','city','zip','source','touch','completed',
+// Column order in the sheet (A=0, B=1, ...)
+const COLS = ['id','type','firstname','lastname','practice','phone','email','website',
+              'address','city','zip','source','priority','touch','completed',
               'nextActionDate','lastContactDate','createdAt','notes'];
 
 // ── STATE ─────────────────────────────────────────────────────────────
@@ -460,165 +335,304 @@ let filterStatus = 'all';
 let filterPriority = 'all';
 let searchQuery = '';
 let editingId = null;
-let syncTimeout = null;
+let isSaving = false;
 
-// ── SHEETS API ────────────────────────────────────────────────────────
-function setSyncStatus(state, msg) {
-  const el = document.getElementById('sync-status');
-  el.className = 'sync-status sync-' + state;
-  el.textContent = { ok: '● Connected', saving: '↑ Saving...', error: '⚠ ' + msg }[state] || msg;
-}
+// ── SHEET HELPERS ─────────────────────────────────────────────────────
+function sheetName(type) { return type === 'chiro' ? CHIRO_SHEET : PI_SHEET; }
+function activeSheet() { return sheetName(activeTab); }
 
-async function sheetsGet(range) {
-  const url = `${BASE_URL}/values/${encodeURIComponent(range)}?key=${API_KEY}`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Sheets read error: ${r.status}`);
-  return r.json();
-}
-
-async function sheetsUpdate(range, values) {
-  const url = `${BASE_URL}/values/${encodeURIComponent(range)}?valueInputOption=RAW&key=${API_KEY}`;
-  const r = await fetch(url, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ range, majorDimension: 'ROWS', values })
-  });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Write error ${r.status}`);
+function rowToContact(row, type, headerMap) {
+  const c = { type };
+  if (headerMap) {
+    // Header-aware: look up each column by name
+    COLS.forEach(col => {
+      const idx = headerMap[col];
+      c[col] = (idx !== undefined && row[idx] !== undefined) ? String(row[idx]) : '';
+    });
+  } else {
+    // Positional fallback
+    COLS.forEach((col, i) => { c[col] = row[i] !== undefined ? String(row[i]) : ''; });
   }
-  return r.json();
+  c.touch = parseInt(c.touch) || 1;
+  c.completed = c.completed === 'true';
+  return c;
 }
 
-async function sheetsAppend(sheetName, values) {
-  const url = `${BASE_URL}/values/${encodeURIComponent(sheetName + '!A1')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS&key=${API_KEY}`;
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ majorDimension: 'ROWS', values })
+function buildHeaderMap(headerRow) {
+  const map = {};
+  headerRow.forEach((h, i) => { if (h) map[String(h).trim()] = i; });
+  return map;
+}
+
+function isOurHeaderRow(headerRow) {
+  // Detect if row 1 is our CRM header (contains at least 3 known col names)
+  const known = new Set(COLS);
+  return headerRow.filter(h => known.has(String(h).trim())).length >= 3;
+}
+
+function contactToRow(c) {
+  return COLS.map(col => {
+    if (col === 'type') return c.type;
+    return c[col] !== undefined ? String(c[col]) : '';
   });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Append error ${r.status}`);
+}
+
+// ── SHEET PARSING ─────────────────────────────────────────────────────
+function parseCRMSheet(allRows, type) {
+  if (!allRows.length) return [];
+  const first = allRows[0];
+  if (isOurHeaderRow(first)) {
+    const headerMap = buildHeaderMap(first);
+    return allRows.slice(1)
+      .filter(r => r.some(c => c))
+      .map(r => rowToContact(r, type, headerMap));
   }
-  return r.json();
+  // No header row — positional (legacy)
+  return allRows.filter(r => r.some(c => c)).map(r => rowToContact(r, type, null));
 }
 
-async function sheetsClear(sheetName) {
-  const url = `${BASE_URL}/values/${encodeURIComponent(sheetName + '!A2:Z')}:clear?key=${API_KEY}`;
-  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-  if (!r.ok) throw new Error(`Clear error ${r.status}`);
-  return r.json();
+// Outscraper column name variants → CRM field
+const OUTSCRAPER_MAP = {
+  email:       ['email','email_1','email1','emails_from_website','contact_email','emailaddress','e-mail'],
+  phone:       ['phone','phone_1','phone1','phonenumber','telephone','tel','contact_phone'],
+  website:     ['site','website','web','url','homepage','web_site'],
+  practice:    ['name','business_name','title','company','firm','organization','place_name'],
+  address:     ['street','full_address','address','street_address','addr','location'],
+  city:        ['city','town','locality','municipality'],
+  zip:         ['postal_code','zip','zipcode','zip_code','postcode'],
+  firstname:   ['owner_first_name','first_name','firstname','contact_first'],
+  lastname:    ['owner_last_name','last_name','lastname','contact_last'],
+  owner:       ['owner_name','owner','contact_name','contact','person_name'],
+};
+
+function matchOutscraperHeader(headers, overrides = {}) {
+  const lower = headers.map(h => String(h).toLowerCase().trim());
+  const result = {};
+
+  for (const [field, candidates] of Object.entries(OUTSCRAPER_MAP)) {
+    // Check manual override first
+    if (overrides[field]) {
+      const idx = lower.indexOf(overrides[field].toLowerCase().trim());
+      if (idx !== -1) { result[field] = idx; continue; }
+    }
+    for (const cand of candidates) {
+      const idx = lower.indexOf(cand);
+      if (idx !== -1) { result[field] = idx; break; }
+    }
+  }
+  return result;
 }
 
-// ── LOAD FROM SHEETS ──────────────────────────────────────────────────
-async function loadFromSheets() {
-  showLoading('Loading contacts...');
+function parseOutscraperRow(row, fieldIdx, type, priority) {
+  const get = (field) => {
+    const i = fieldIdx[field];
+    return (i !== undefined && row[i] !== undefined) ? String(row[i]).trim() : '';
+  };
+
+  let firstname = get('firstname');
+  let lastname  = get('lastname');
+  if (!firstname && !lastname) {
+    const owner = get('owner');
+    if (owner) {
+      const parts = owner.trim().split(/\s+/);
+      firstname = parts[0] || '';
+      lastname  = parts.slice(1).join(' ') || '';
+    }
+  }
+
+  // Parse city/zip out of full_address if dedicated columns are empty
+  let city = get('city');
+  let zip  = get('zip');
+  let address = get('address');
+  if (address && (!city || !zip)) {
+    const m = address.match(/,\s*([^,]+),\s*[A-Z]{2}\s+(\d{5})/);
+    if (m) { if (!city) city = m[1].trim(); if (!zip) zip = m[2]; }
+  }
+
+  return {
+    id: genId(),
+    type,
+    firstname,
+    lastname,
+    practice:        get('practice'),
+    phone:           get('phone'),
+    email:           get('email'),
+    website:         get('website'),
+    address,
+    city,
+    zip,
+    source:          'Google Maps',
+    priority,
+    touch:           1,
+    completed:       false,
+    nextActionDate:  todayStr(),
+    lastContactDate: '',
+    createdAt:       todayStr(),
+    notes:           '',
+  };
+}
+
+// ── SYNC STATUS ───────────────────────────────────────────────────────
+function setSyncStatus(state, label) {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  dot.className = 'sync-dot ' + state;
+  lbl.textContent = label;
+}
+
+function showToast(msg, duration = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// ── INIT SHEETS ───────────────────────────────────────────────────────
+async function initSheets() {
+  // Ensure both tabs exist with header rows
   try {
-    contacts = [];
-    for (const [type, sheetName] of Object.entries(SHEETS)) {
-      try {
-        const data = await sheetsGet(`${sheetName}!A1:S`);
-        const rows = data.values || [];
-        if (rows.length < 2) continue;
-        const header = rows[0];
-        for (let i = 1; i < rows.length; i++) {
-          const row = rows[i];
-          if (!row || row.every(c => !c)) continue;
-          const c = {};
-          COLS.forEach((col, idx) => { c[col] = row[idx] || ''; });
-          c.touch = parseInt(c.touch) || 1;
-          c.completed = c.completed === 'true' || c.completed === true;
-          c.type = type;
-          if (c.id) contacts.push(c);
-        }
-      } catch(e) {
-        // Sheet tab may not exist yet — that's ok
-        console.log(`Sheet ${sheetName} not found or empty, will create on first write`);
+    const meta = await fetch(`${BASE_URL}?key=${API_KEY}`).then(r => r.json());
+    const existing = (meta.sheets || []).map(s => s.properties.title);
+
+    const toCreate = [];
+    if (!existing.includes(CHIRO_SHEET)) toCreate.push(CHIRO_SHEET);
+    if (!existing.includes(PI_SHEET)) toCreate.push(PI_SHEET);
+
+    if (toCreate.length > 0) {
+      await fetch(`${BASE_URL}:batchUpdate?key=${API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requests: toCreate.map(title => ({ addSheet: { properties: { title } } }))
+        })
+      });
+    }
+
+    // Write headers if sheets are new or empty
+    for (const sheet of [CHIRO_SHEET, PI_SHEET]) {
+      const check = await fetch(`${BASE_URL}/values/${encodeURIComponent(sheet + '!A1')}?key=${API_KEY}`).then(r => r.json());
+      if (!check.values) {
+        await writeRow(sheet, 1, COLS);
       }
     }
-    setSyncStatus('ok');
-    renderTable();
-    renderDetail();
   } catch(e) {
-    setSyncStatus('error', 'Load failed');
+    console.warn('Init sheets error:', e);
+  }
+}
+
+// ── READ FROM SHEETS ──────────────────────────────────────────────────
+async function loadFromSheets() {
+  setSyncStatus('syncing', 'Loading...');
+  document.getElementById('loading-overlay').classList.remove('hidden');
+  document.getElementById('loading-text').textContent = 'Loading contacts...';
+
+  try {
+    await initSheets();
+
+    const [chiroRes, piRes] = await Promise.all([
+      fetch(`${BASE_URL}/values/${encodeURIComponent(CHIRO_SHEET + '!A1:Z1000')}?key=${API_KEY}`).then(r => r.json()),
+      fetch(`${BASE_URL}/values/${encodeURIComponent(PI_SHEET + '!A1:Z1000')}?key=${API_KEY}`).then(r => r.json())
+    ]);
+
+    contacts = [
+      ...parseCRMSheet(chiroRes.values || [], 'chiro'),
+      ...parseCRMSheet(piRes.values || [], 'pi')
+    ];
+
+    setSyncStatus('ok', 'Synced with Google Sheets');
+    renderTable();
+    updateStats();
+    if (selectedId) renderDetail();
+  } catch(e) {
+    setSyncStatus('error', 'Connection error');
+    showToast('⚠ Could not connect to Google Sheets. Check sharing settings.');
     console.error(e);
   } finally {
-    hideLoading();
+    document.getElementById('loading-overlay').classList.add('hidden');
   }
 }
 
-// ── SAVE TO SHEETS ────────────────────────────────────────────────────
-async function saveAllToSheets() {
-  setSyncStatus('saving');
+// ── WRITE HELPERS ─────────────────────────────────────────────────────
+async function writeRow(sheet, rowNum, values) {
+  const range = `${sheet}!A${rowNum}`;
+  await fetch(`${BASE_URL}/values/${encodeURIComponent(range)}?valueInputOption=RAW&key=${API_KEY}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values: [values] })
+  });
+}
+
+async function appendRow(sheet, values) {
+  const range = `${sheet}!A:A`;
+  await fetch(`${BASE_URL}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS&key=${API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values: [values] })
+  });
+}
+
+async function updateContactInSheet(c) {
+  setSyncStatus('syncing', 'Saving...');
   try {
-    for (const [type, sheetName] of Object.entries(SHEETS)) {
-      const rows = contacts.filter(c => c.type === type);
-      // Write header + data
-      const header = COLS;
-      const data = rows.map(c => COLS.map(col => {
-        const v = c[col];
-        if (v === true) return 'true';
-        if (v === false) return 'false';
-        return v || '';
-      }));
-      // Clear existing data rows then write fresh
-      try { await sheetsClear(sheetName); } catch(e) {}
-      // Write header to row 1
-      await sheetsUpdate(`${sheetName}!A1`, [header]);
-      // Write data starting row 2
-      if (data.length > 0) {
-        await sheetsUpdate(`${sheetName}!A2`, data);
-      }
-    }
-    setSyncStatus('ok');
+    // Find row number in the sheet
+    const sheet = sheetName(c.type);
+    const res = await fetch(`${BASE_URL}/values/${encodeURIComponent(sheet + '!A2:A1000')}?key=${API_KEY}`).then(r => r.json());
+    const ids = (res.values || []).map(r => r[0]);
+    const rowIdx = ids.indexOf(c.id);
+    if (rowIdx === -1) { showToast('⚠ Could not find contact row.'); return; }
+    await writeRow(sheet, rowIdx + 2, contactToRow(c));
+    setSyncStatus('ok', 'Saved to Google Sheets');
+    showToast('✓ Saved');
   } catch(e) {
-    setSyncStatus('error', 'Save failed — check sheet permissions');
-    console.error('Save error:', e);
-    alert(`Save failed: ${e.message}\n\nMake sure the Google Sheet is shared as "Anyone with the link can edit".`);
+    setSyncStatus('error', 'Save failed');
+    showToast('⚠ Save failed. Check connection.');
+    console.error(e);
   }
 }
 
-function scheduleSave() {
-  clearTimeout(syncTimeout);
-  syncTimeout = setTimeout(saveAllToSheets, 1200);
+async function addContactToSheet(c) {
+  setSyncStatus('syncing', 'Saving...');
+  try {
+    await appendRow(sheetName(c.type), contactToRow(c));
+    setSyncStatus('ok', 'Saved to Google Sheets');
+    showToast('✓ Contact added');
+  } catch(e) {
+    setSyncStatus('error', 'Save failed');
+    showToast('⚠ Save failed. Check connection.');
+    console.error(e);
+  }
 }
 
-// ── HELPERS ───────────────────────────────────────────────────────────
-function todayStr() { return new Date().toISOString().split('T')[0]; }
-function addDays(str, n) { const d = new Date(str); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]; }
-function fmtDate(str) {
-  if (!str) return '—';
-  const d = new Date(str + 'T12:00:00');
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+async function deleteContactFromSheet(c) {
+  setSyncStatus('syncing', 'Deleting...');
+  try {
+    const sheet = sheetName(c.type);
+    const res = await fetch(`${BASE_URL}/values/${encodeURIComponent(sheet + '!A2:A1000')}?key=${API_KEY}`).then(r => r.json());
+    const ids = (res.values || []).map(r => r[0]);
+    const rowIdx = ids.indexOf(c.id);
+    if (rowIdx === -1) return;
 
-function getStatus(c) {
-  if (c.completed === true || c.completed === 'true' || parseInt(c.touch) > 3) return 'complete';
-  if (!c.nextActionDate || c.nextActionDate === '' || c.nextActionDate === 'Invalid Date') return 'ok';
-  const nd = new Date(c.nextActionDate + 'T12:00:00');
-  if (isNaN(nd.getTime())) return 'ok';
-  const td = new Date(); td.setHours(0,0,0,0);
-  if (nd < td) return 'overdue';
-  if (nd.toDateString() === td.toDateString()) return 'due';
-  return 'ok';
-}
+    // Get sheet gid
+    const meta = await fetch(`${BASE_URL}?key=${API_KEY}`).then(r => r.json());
+    const sheetMeta = meta.sheets.find(s => s.properties.title === sheet);
+    if (!sheetMeta) return;
+    const sheetGid = sheetMeta.properties.sheetId;
+    const actualRow = rowIdx + 1; // 0-indexed, row 1 = data row 0 after header
 
-function personalize(body, c) {
-  const isPI = c.type === 'pi';
-  const name = isPI ? `${c.firstname} ${c.lastname}` : `Dr. ${c.lastname}`;
-  return body.replace(/\[Last Name\]/g, c.lastname || 'Last Name')
-             .replace(/\[Attorney Name\]/g, name)
-             .replace(/\[First Name\]/g, c.firstname || 'First Name');
+    await fetch(`${BASE_URL}:batchUpdate?key=${API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requests: [{ deleteDimension: { range: { sheetId: sheetGid, dimension: 'ROWS', startIndex: actualRow, endIndex: actualRow + 1 } } }]
+      })
+    });
+    setSyncStatus('ok', 'Deleted');
+    showToast('Contact removed');
+  } catch(e) {
+    setSyncStatus('error', 'Delete failed');
+    console.error(e);
+  }
 }
-function hlPlaceholders(t) { return t.replace(/\[([^\]]+)\]/g, '<span class="epl">[$1]</span>'); }
-
-function showLoading(msg) {
-  document.getElementById('loading-text').textContent = msg || 'Loading...';
-  document.getElementById('loading-overlay').classList.remove('hidden');
-}
-function hideLoading() { document.getElementById('loading-overlay').classList.add('hidden'); }
 
 // ── SEQUENCES ─────────────────────────────────────────────────────────
 const TOUCH_LABELS = ['Cold Intro', 'Post-Visit', 'Lunch Close'];
@@ -626,8 +640,7 @@ const TOUCH_DAYS_DELTA = [0, 5, 9];
 
 const sequences = {
   chiro: [
-    {
-      subject: 'A spine surgeon who refers back — miiSpine, Louisville',
+    { subject: 'A spine surgeon who refers back — miiSpine, Louisville',
       body: `Dr. [Last Name],
 
 My name is Venu Vemuri — I'm a minimally invasive spine surgeon and the founder of miiSpine here in Louisville.
@@ -650,39 +663,33 @@ Warm regards,
 
 Venu Vemuri, DO
 Founder, miiSpine
-(502) 242-6370 | miispine.com`
-    },
-    {
-      subject: 'Great to meet your team — from miiSpine',
+(502) 242-6370 | miispine.com` },
+    { subject: 'Great to meet your team — from miiSpine',
       body: `Dr. [Last Name],
 
 [Staff member name] mentioned what a warm welcome your team gave them — really appreciated that.
 
 I wanted to follow up personally. My goal is simple: I want to be integrated into your care plan as a resource, not a replacement. The chiropractors I work with don't lose patients to me — they gain a partner for the cases that go beyond what chiropractic alone can address.
 
-Here's how I think about the continuum of care for your patients:
+Here's how I think about the continuum of care:
 
 → Chiropractic first — always the right starting point for most spine and musculoskeletal complaints
 → Interventional pain next — when conservative care plateaus, I offer image-guided injections, nerve blocks, and regenerative options (PRP, BMAC) that extend the conservative pathway without jumping to surgery
 → Surgery only when clearly indicated — outpatient, minimally invasive, with the patient returning to your care post-op
 
-A few more specifics:
+A few specifics:
 
-→ Same-week consult slots reserved specifically for DC referrals
-→ Every patient gets a written clinical opinion after their visit — surgical or not
-→ Non-surgical patients are formally referred back to you with a clinical summary
-→ You get a detailed note after every consult, every time
+→ Same-week consult slots reserved for DC referrals
+→ Every patient gets a written clinical opinion after their visit
+→ Non-surgical patients formally referred back to you with a clinical summary
+→ Detailed note to your office after every consult, every time
 
 I'd genuinely enjoy taking you to lunch. Would any time in the next two weeks work?
 
-Looking forward to it,
-
 Venu Vemuri, DO
 Founder, miiSpine
-(502) 242-6370`
-    },
-    {
-      subject: 'Lunch on me — picking a time',
+(502) 242-6370` },
+    { subject: 'Lunch on me — picking a time',
       body: `Dr. [Last Name],
 
 I'll keep this short — I know how busy practice gets.
@@ -693,21 +700,19 @@ I've built miiSpine around a simple idea: your patients come back to you. Whethe
 
 I want to be the surgeon on your team — not a place your patients disappear to.
 
-I have openings on [Day/Date] and [Day/Date] — does either work? Happy to come to you or pick somewhere in between.
+I have openings on [Day/Date] and [Day/Date] — does either work?
 
 Venu Vemuri, DO
 Founder, miiSpine
-(502) 242-6370`
-    }
+(502) 242-6370` }
   ],
   pi: [
-    {
-      subject: 'Spine surgeon in Louisville — full-episode PI support',
+    { subject: 'Spine surgeon in Louisville — full-episode PI support',
       body: `[Attorney Name],
 
 My name is Venu Vemuri — I'm a fellowship-trained minimally invasive spine surgeon and the founder of miiSpine here in Louisville.
 
-I'm reaching out because most attorneys in town don't have a true one-stop musculoskeletal partner — someone who can handle spine and orthopedic surgical opinions, medical narratives, impairment ratings, and deposition support all under one roof.
+Most attorneys in town don't have a true one-stop musculoskeletal partner — someone who can handle spine and orthopedic surgical opinions, medical narratives, impairment ratings, and deposition support all under one roof.
 
 At miiSpine, that's exactly what we offer:
 
@@ -719,24 +724,20 @@ At miiSpine, that's exactly what we offer:
 
 My staff will be in your area this week and would love to drop off our referral packet. No pressure — just want to get on your radar.
 
-Would that be alright?
-
 Venu Vemuri, DO
 Founder, miiSpine
-(502) 242-6370 | miispine.com`
-    },
-    {
-      subject: 'Following up — miiSpine PI support',
+(502) 242-6370 | miispine.com` },
+    { subject: 'Following up — miiSpine PI support',
       body: `[Attorney Name],
 
-[Staff member] mentioned they stopped by and got to meet your team — appreciate that.
+[Staff member] mentioned they stopped by — appreciate that.
 
 Most spine surgeons treat PI cases as a side business. We've built our practice around it:
 
 → Clients seen within a week of referral
 → Every consult — spine or orthopedic — produces a written clinical opinion
 → Lien-based billing so your clients don't pay out of pocket
-→ Narratives written to be litigation-ready, not just clinical records
+→ Narratives written to be litigation-ready
 → If it goes to deposition, I show up — and I prepare
 
 The difference between a strong and weak spine case often comes down to documentation quality and surgeon credibility. I take both seriously.
@@ -745,10 +746,8 @@ Can I take you to lunch in the next two weeks?
 
 Venu Vemuri, DO
 Founder, miiSpine
-(502) 242-6370`
-    },
-    {
-      subject: "Lunch — let's find a time",
+(502) 242-6370` },
+    { subject: "Lunch — let's find a time",
       body: `[Attorney Name],
 
 Short note — I'd like to buy you lunch and introduce myself in person.
@@ -759,26 +758,46 @@ I have [Day/Date] and [Day/Date] open — does either work?
 
 Venu Vemuri, DO
 Founder, miiSpine
-(502) 242-6370`
-    }
+(502) 242-6370` }
   ]
 };
 
+// ── HELPERS ───────────────────────────────────────────────────────────
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function addDays(str, n) { const d = new Date(str); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]; }
+function fmtDate(str) { if (!str) return '—'; const d = new Date(str + 'T12:00:00'); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+function getStatus(c) {
+  if (c.completed || c.touch > 3) return 'complete';
+  if (!c.nextActionDate) return 'ok';
+  const nd = new Date(c.nextActionDate + 'T12:00:00');
+  const td = new Date(); td.setHours(0,0,0,0);
+  if (nd < td) return 'overdue';
+  if (nd.toDateString() === td.toDateString()) return 'due';
+  return 'ok';
+}
+
+function personalize(body, c) {
+  const name = c.type === 'pi' ? `${c.firstname} ${c.lastname}` : `Dr. ${c.lastname}`;
+  return body.replace(/\[Last Name\]/g, c.lastname || 'Last Name')
+             .replace(/\[Attorney Name\]/g, name)
+             .replace(/\[First Name\]/g, c.firstname || 'First Name');
+}
+
+function hlPH(t) { return t.replace(/\[([^\]]+)\]/g, '<span class="epl">[$1]</span>'); }
+
 // ── FILTERS ───────────────────────────────────────────────────────────
 function switchTab(tab) {
-  activeTab = tab;
-  selectedId = null;
-  document.querySelectorAll('.tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', (i === 0 && tab === 'chiro') || (i === 1 && tab === 'pi'));
-  });
+  activeTab = tab; selectedId = null;
+  document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', (i===0&&tab==='chiro')||(i===1&&tab==='pi')));
   renderDetail(); renderTable();
 }
 
 function setStatusFilter(f) {
   filterStatus = f;
   document.querySelectorAll('.filter-group:first-child .filter-btn').forEach(b => {
-    const map = { all:'All', overdue:'Overdue', due:'Due Today', active:'Active', complete:'Complete' };
-    b.classList.toggle('active', b.textContent.trim() === map[f]);
+    b.classList.toggle('active', b.textContent.trim() === {all:'All',overdue:'Overdue',due:'Due Today',active:'Active',complete:'Complete'}[f]);
   });
   renderTable();
 }
@@ -786,8 +805,7 @@ function setStatusFilter(f) {
 function setPriorityFilter(f) {
   filterPriority = f;
   document.querySelectorAll('.filter-group:nth-child(2) .filter-btn').forEach(b => {
-    const map = { all:'All Priority', High:'High', Medium:'Medium', Low:'Low' };
-    b.classList.toggle('active', b.textContent.trim() === map[f]);
+    b.classList.toggle('active', b.textContent.trim() === {all:'All Priority',High:'High',Medium:'Medium',Low:'Low'}[f]);
   });
   renderTable();
 }
@@ -811,58 +829,55 @@ function filteredContacts() {
   });
 }
 
-// ── RENDER ────────────────────────────────────────────────────────────
+// ── RENDER TABLE ──────────────────────────────────────────────────────
 function renderTable() {
   const tbody = document.getElementById('contact-tbody');
   const list = filteredContacts();
   list.sort((a, b) => {
-    const ord = { overdue:0, due:1, ok:2, complete:3 };
-    const pord = { High:0, Medium:1, Low:2 };
+    const ord = {overdue:0,due:1,ok:2,complete:3};
+    const pord = {High:0,Medium:1,Low:2};
     const sa = ord[getStatus(a)], sb = ord[getStatus(b)];
     if (sa !== sb) return sa - sb;
-    const pa = pord[a.priority] ?? 1, pb = pord[b.priority] ?? 1;
-    if (pa !== pb) return pa - pb;
-    return (a.nextActionDate||'9999') < (b.nextActionDate||'9999') ? -1 : 1;
+    return (pord[a.priority]??1) - (pord[b.priority]??1);
   });
 
-  if (list.length === 0) {
+  if (!list.length) {
     tbody.innerHTML = '';
     document.getElementById('empty-state').classList.remove('hidden');
-  } else {
-    document.getElementById('empty-state').classList.add('hidden');
-    const prCls = { High:'priority-high', Medium:'priority-med', Low:'priority-low' };
-    tbody.innerHTML = list.map(c => {
-      const isComplete = c.completed === true || c.completed === 'true' || c.touch > 3;
-      const st = getStatus(c);
-      const statusHtml = {
-        overdue: `<span class="status-overdue">● Overdue ${fmtDate(c.nextActionDate)}</span>`,
-        due: `<span class="status-due">● Due Today</span>`,
-        ok: `<span class="status-ok">● Ready to contact</span>`,
-        complete: `<span class="status-complete">✓ Complete</span>`
-      }[st];
-      const pips = [1,2,3].map(i => {
-        const cls = i < c.touch ? 'done' : (i === c.touch && !isComplete ? 'current' : '');
-        return `<span class="tp ${cls}"></span>`;
-      }).join('');
-      return `<tr onclick="selectContact('${c.id}')" class="${selectedId===c.id?'selected':''}">
-        <td><div class="contact-name">${c.firstname} ${c.lastname}</div><div class="contact-sub">${c.practice||'—'}</div></td>
-        <td><div style="font-size:11px;color:var(--mid)">${c.address?(c.address+(c.city?', '+c.city:'')):'—'}</div></td>
-        <td><div style="font-size:11px;color:var(--mid)">${c.phone||'—'}</div></td>
-        <td><div style="font-size:11px;color:var(--mid)">${c.email||'—'}</div></td>
-        <td><div style="font-size:11px;color:var(--orange)">${c.website?`<a href="https://${c.website.replace(/^https?:\/\//,'')}" target="_blank" onclick="event.stopPropagation()">${c.website.replace(/^https?:\/\//,'').replace(/\/$/,'')}</a>`:'—'}</div></td>
-        <td><span class="${prCls[c.priority]||'priority-low'}">${c.priority||'—'}</span></td>
-        <td><div class="touch-pips">${pips}</div><div style="font-size:10px;color:var(--mid);margin-top:2px">${isComplete?'Done':'T'+c.touch}</div></td>
-        <td style="font-size:11px;color:var(--mid)">${isComplete?'—':TOUCH_LABELS[c.touch-1]||'—'}</td>
-        <td>${statusHtml}</td>
-        <td><div class="action-cell">
-          ${!isComplete?`<button class="icon-btn advance" onclick="event.stopPropagation();advanceTouch('${c.id}')">✓ Done</button>`:''}
-          <button class="icon-btn" onclick="event.stopPropagation();openEditModal('${c.id}')">Edit</button>
-          <button class="icon-btn" onclick="event.stopPropagation();deleteContact('${c.id}')" style="color:var(--red)">✕</button>
-        </div></td>
-      </tr>`;
-    }).join('');
+    return;
   }
-  updateStats();
+  document.getElementById('empty-state').classList.add('hidden');
+
+  const pCls = {High:'priority-high',Medium:'priority-med',Low:'priority-low'};
+  tbody.innerHTML = list.map(c => {
+    const isComplete = c.completed || c.touch > 3;
+    const st = getStatus(c);
+    const stHtml = {
+      overdue: `<span class="status-overdue">● Overdue ${fmtDate(c.nextActionDate)}</span>`,
+      due: `<span class="status-due">● Due Today</span>`,
+      ok: `<span class="status-ok">● ${fmtDate(c.nextActionDate)}</span>`,
+      complete: `<span class="status-complete">✓ Complete</span>`
+    }[st];
+    const pips = [1,2,3].map(i => `<span class="tp ${i<c.touch?'done':i===c.touch&&!isComplete?'current':''}"></span>`).join('');
+    const website = c.website ? c.website.replace(/^https?:\/\//,'').replace(/\/$/,'') : '';
+
+    return `<tr onclick="selectContact('${c.id}')" class="${selectedId===c.id?'selected':''}">
+      <td><div class="contact-name">${c.firstname} ${c.lastname}</div><div class="contact-sub">${c.practice||'—'}</div></td>
+      <td><div style="font-size:11px;color:var(--mid)">${c.address?c.address+(c.city?', '+c.city:''):'—'}</div></td>
+      <td><div style="font-size:11px;color:var(--mid)">${c.phone||'—'}</div></td>
+      <td><div style="font-size:11px;color:var(--mid)">${c.email||'—'}</div></td>
+      <td><div style="font-size:11px">${website?`<a href="https://${website}" target="_blank" onclick="event.stopPropagation()" style="color:var(--orange)">${website}</a>`:'—'}</div></td>
+      <td><span class="${pCls[c.priority]||'priority-low'}">${c.priority||'—'}</span></td>
+      <td><div class="touch-pips">${pips}</div><div style="font-size:10px;color:var(--mid);margin-top:2px">${isComplete?'Done':'T'+c.touch}</div></td>
+      <td style="font-size:11px;color:var(--mid)">${isComplete?'—':TOUCH_LABELS[c.touch-1]||'—'}</td>
+      <td>${stHtml}</td>
+      <td><div class="action-cell">
+        ${!isComplete?`<button class="icon-btn advance" onclick="event.stopPropagation();advanceTouch('${c.id}')">✓ Done</button>`:''}
+        <button class="icon-btn" onclick="event.stopPropagation();openEditModal('${c.id}')">Edit</button>
+        <button class="icon-btn" onclick="event.stopPropagation();deleteContact('${c.id}')" style="color:var(--red)">✕</button>
+      </div></td>
+    </tr>`;
+  }).join('');
 }
 
 function updateStats() {
@@ -872,6 +887,7 @@ function updateStats() {
   document.getElementById('stat-total').textContent = contacts.length;
 }
 
+// ── DETAIL PANEL ──────────────────────────────────────────────────────
 function selectContact(id) { selectedId = id; renderTable(); renderDetail(); }
 
 function renderDetail() {
@@ -879,14 +895,15 @@ function renderDetail() {
   const c = contacts.find(x => x.id === selectedId);
   if (!c) { panel.innerHTML = `<div class="detail-empty"><div class="empty-icon">←</div><p>Select a contact to view their profile, sequence progress, and email template.</p></div>`; return; }
 
-  const isComplete = c.completed === true || c.completed === 'true' || c.touch > 3;
-  const touchIdx = Math.min(c.touch, 3) - 1;
-  const template = sequences[c.type][touchIdx];
-  const body = personalize(template.body, c);
+  const isComplete = c.completed || c.touch > 3;
+  const tidx = Math.min(c.touch, 3) - 1;
+  const tmpl = sequences[c.type][tidx];
+  const body = personalize(tmpl.body, c);
+  const website = c.website ? c.website.replace(/^https?:\/\//,'').replace(/\/$/,'') : '';
 
   const steps = [1,2,3].map((i,idx) => {
-    const cls = i < c.touch ? 'done' : (i === c.touch && !isComplete ? 'current' : '');
-    const conn = i < 3 ? '<div style="flex:1;height:2px;background:var(--border);margin-top:14px;min-width:20px"></div>' : '';
+    const cls = i < c.touch ? 'done' : i === c.touch && !isComplete ? 'current' : '';
+    const conn = i < 3 ? '<div style="flex:1;height:2px;background:var(--border);margin-top:14px;min-width:16px"></div>' : '';
     return `<div class="tp-step ${cls}"><div class="tp-circle">${i<c.touch?'✓':i}</div><div class="tp-step-label">${TOUCH_LABELS[idx]}</div></div>${conn}`;
   }).join('');
 
@@ -896,12 +913,12 @@ function renderDetail() {
       <div class="detail-name">${c.firstname} ${c.lastname}</div>
       <div class="detail-practice">${c.practice||''}</div>
       <div class="detail-meta">
-        ${c.phone?`<div class="detail-meta-row"><span class="detail-meta-label">Phone</span><span class="detail-meta-val"><a href="tel:${c.phone}">${c.phone}</a></span></div>`:''}
-        ${c.email?`<div class="detail-meta-row"><span class="detail-meta-label">Email</span><span class="detail-meta-val"><a href="mailto:${c.email}">${c.email}</a></span></div>`:''}
-        ${c.website?`<div class="detail-meta-row"><span class="detail-meta-label">Website</span><span class="detail-meta-val"><a href="https://${c.website.replace(/^https?:\/\//,'')}" target="_blank">${c.website.replace(/^https?:\/\//,'')}</a></span></div>`:''}
-        ${c.address?`<div class="detail-meta-row"><span class="detail-meta-label">Address</span><span class="detail-meta-val">${c.address}${c.city?', '+c.city:''}${c.zip?' '+c.zip:''}</span></div>`:''}
-        ${c.source?`<div class="detail-meta-row"><span class="detail-meta-label">Source</span><span class="detail-meta-val">${c.source}</span></div>`:''}
-        <div class="detail-meta-row"><span class="detail-meta-label">Priority</span><span class="detail-meta-val">${c.priority||'—'}</span></div>
+        ${c.phone?`<div class="detail-meta-row"><span class="dml">Phone</span><span class="dmv"><a href="tel:${c.phone}">${c.phone}</a></span></div>`:''}
+        ${c.email?`<div class="detail-meta-row"><span class="dml">Email</span><span class="dmv"><a href="mailto:${c.email}">${c.email}</a></span></div>`:''}
+        ${website?`<div class="detail-meta-row"><span class="dml">Website</span><span class="dmv"><a href="https://${website}" target="_blank">${website}</a></span></div>`:''}
+        ${c.address?`<div class="detail-meta-row"><span class="dml">Address</span><span class="dmv">${c.address}${c.city?', '+c.city:''}${c.zip?' '+c.zip:''}</span></div>`:''}
+        ${c.source?`<div class="detail-meta-row"><span class="dml">Source</span><span class="dmv">${c.source}</span></div>`:''}
+        <div class="detail-meta-row"><span class="dml">Priority</span><span class="dmv">${c.priority||'—'}</span></div>
       </div>
     </div>
     <div class="touch-progress">
@@ -916,7 +933,7 @@ function renderDetail() {
     </div>
     <div class="detail-section">
       <div class="section-hdr">Notes</div>
-      <textarea class="notes-area" id="notes-area" placeholder="Personal details, shared connections, what to mention at lunch...">${c.notes||''}</textarea>
+      <textarea class="notes-area" id="notes-area" placeholder="Personal details, shared connections...">${c.notes||''}</textarea>
       <button class="save-btn" onclick="saveNotes('${c.id}')">Save Notes</button>
     </div>
     <div class="detail-section">
@@ -925,276 +942,216 @@ function renderDetail() {
         <button class="copy-email-btn" id="copy-email-btn" onclick="copyEmail('${c.id}')">Copy</button>
       </div>
       <div style="height:10px"></div>
-      <div class="email-subject"><span>Subject</span>${template.subject}</div>
-      <div class="email-body-preview">${hlPlaceholders(body)}</div>
+      <div class="email-subject"><span>Subject</span>${tmpl.subject}</div>
+      <div class="email-body-preview">${hlPH(body)}</div>
     </div>`;
 }
 
 // ── ACTIONS ───────────────────────────────────────────────────────────
-function advanceTouch(id) {
+async function advanceTouch(id) {
   const c = contacts.find(x => x.id === id);
   if (!c || c.touch > 3) return;
   c.lastContactDate = todayStr();
-  c.touch = parseInt(c.touch) + 1;
+  c.touch += 1;
   if (c.touch > 3) { c.completed = true; c.nextActionDate = ''; }
-  else { c.nextActionDate = addDays(todayStr(), TOUCH_DAYS_DELTA[c.touch - 1]); }
-  renderTable(); if (selectedId === id) renderDetail();
-  scheduleSave();
+  else { c.nextActionDate = addDays(todayStr(), TOUCH_DAYS_DELTA[c.touch-1]); }
+  renderTable(); updateStats(); if (selectedId===id) renderDetail();
+  await updateContactInSheet(c);
 }
 
-function markComplete(id) {
+async function markComplete(id) {
   const c = contacts.find(x => x.id === id);
   if (!c) return;
   c.completed = true; c.touch = 4; c.nextActionDate = '';
-  renderTable(); if (selectedId === id) renderDetail();
-  scheduleSave();
+  renderTable(); updateStats(); if (selectedId===id) renderDetail();
+  await updateContactInSheet(c);
 }
 
-function saveNotes(id) {
+async function saveNotes(id) {
   const c = contacts.find(x => x.id === id);
   if (!c) return;
   c.notes = document.getElementById('notes-area').value;
   const btn = document.querySelector('.save-btn');
   if (btn) { btn.textContent = 'Saving...'; }
-  scheduleSave();
-  setTimeout(() => { if (btn) btn.textContent = 'Save Notes'; }, 1500);
+  await updateContactInSheet(c);
+  if (btn) { btn.textContent = 'Saved!'; setTimeout(() => btn.textContent = 'Save Notes', 1500); }
 }
 
 function copyEmail(id) {
   const c = contacts.find(x => x.id === id);
   if (!c) return;
   const tmpl = sequences[c.type][Math.min(c.touch,3)-1];
-  const text = `Subject: ${tmpl.subject}\n\n${personalize(tmpl.body, c)}`;
+  const text = `Subject: ${tmpl.subject}\n\n${personalize(tmpl.body,c)}`;
   navigator.clipboard.writeText(text).then(() => {
     const btn = document.getElementById('copy-email-btn');
-    if (btn) { btn.textContent = 'Copied!'; btn.classList.add('copied'); setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000); }
+    if (btn) { btn.textContent='Copied!'; btn.classList.add('copied'); setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied');},2000); }
   });
 }
 
-function deleteContact(id) {
-  if (!confirm('Remove this contact?')) return;
+async function deleteContact(id) {
+  if (!confirm('Remove this contact from the CRM and Google Sheet?')) return;
+  const c = contacts.find(x => x.id === id);
+  if (!c) return;
   contacts = contacts.filter(x => x.id !== id);
   if (selectedId === id) { selectedId = null; renderDetail(); }
-  renderTable(); scheduleSave();
+  renderTable(); updateStats();
+  await deleteContactFromSheet(c);
 }
-
-// ── EXPORT CSV ────────────────────────────────────────────────────────
-function exportCSV() {
-  const list = contacts.filter(c => c.type === activeTab);
-  const cols = ['First Name','Last Name','Practice','Type','Priority','Phone','Email','Website','Address','City','Zip','Source','Touch','Last Contact','Next Action','Status','Notes'];
-  const rows = list.map(c => [
-    c.firstname,c.lastname,c.practice,
-    c.type==='chiro'?'Chiropractor':'PI Attorney',
-    c.priority,c.phone,c.email,c.website,
-    c.address,c.city,c.zip,c.source,
-    (c.completed===true||c.completed==='true'||c.touch>3)?'Complete':`Touch ${c.touch}`,
-    c.lastContactDate||'',c.nextActionDate||'',
-    getStatus(c),c.notes||''
-  ].map(v => `"${(v||'').toString().replace(/"/g,'""')}"`));
-  const csv = [cols.map(h=>`"${h}"`).join(','),...rows.map(r=>r.join(','))].join('\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download = `miispine-${activeTab}-${todayStr()}.csv`;
-  a.click();
-}
-
-// ── IMPORT CSV ────────────────────────────────────────────────────────
-function openImportModal() { document.getElementById('import-overlay').classList.remove('hidden'); }
-function closeImportModal() { document.getElementById('import-overlay').classList.add('hidden'); document.getElementById('import-textarea').value=''; }
-
-function doImport() {
-  const raw = document.getElementById('import-textarea').value.trim();
-  if (!raw) return;
-  const lines = raw.split('\n').map(l=>l.trim()).filter(l=>l);
-  if (lines.length < 2) { alert('Need at least a header row and one data row.'); return; }
-
-  function parseCSVLine(line) {
-    const result=[]; let cur=''; let inQ=false;
-    for (let i=0;i<line.length;i++) {
-      const ch=line[i];
-      if (ch==='"') { inQ=!inQ; }
-      else if (ch===',' && !inQ) { result.push(cur.trim()); cur=''; }
-      else { cur+=ch; }
-    }
-    result.push(cur.trim());
-    return result.map(v=>v.replace(/^"|"$/g,'').replace(/""/g,'"'));
-  }
-
-  const rawHeaders = parseCSVLine(lines[0]);
-  const header = rawHeaders.map(h=>h.toLowerCase().replace(/[^a-z0-9_]/g,''));
-
-  function findCol() {
-    const names = Array.from(arguments);
-    for (const name of names) {
-      const clean = name.toLowerCase().replace(/[^a-z0-9_]/g,'');
-      const i = header.indexOf(clean);
-      if (i >= 0) return i;
-    }
-    return -1;
-  }
-
-  const idx = {
-    firstname:    findCol('first_name','firstname','fname'),
-    lastname:     findCol('last_name','lastname','lname'),
-    fullname:     findCol('full_name','name_for_emails','fullname'),
-    name:         findCol('name'),
-    practice:     findCol('company_name','practice','firm'),
-    phone:        findCol('phone'),
-    contactphone: findCol('contact_phone'),
-    email:        findCol('email'),
-    emailstatus:  findCol('email.emails_validator.status','emailemailsvalidatorstatus'),
-    website:      findCol('website'),
-    domain:       findCol('domain'),
-    street:       findCol('street'),
-    address:      findCol('address'),
-    city:         findCol('city'),
-    zip:          findCol('postal_code','zip','zipcode'),
-    rating:       findCol('rating'),
-  };
-
-  const carrierWords = ['bandwidth','t-mobile','tmobile','cingular','verizon','at&t',
-    'sprint','time warner','comcast','charter','centurylink','windstream',
-    'wireless pcs','llc','inc.','usa inc','pcs,'];
-
-  const seen = new Set();
-  let added=0, skipped=0;
-
-  for (let i=1;i<lines.length;i++) {
-    const cols = parseCSVLine(lines[i]);
-    if (cols.every(function(c){return !c;})) continue;
-    const get = function(ci) { return (ci >= 0 && ci < cols.length) ? (cols[ci]||'') : ''; };
-
-    let firstname = get(idx.firstname);
-    let lastname   = get(idx.lastname);
-    if (!firstname && !lastname) {
-      const full = get(idx.fullname) || get(idx.name) || '';
-      const parts = full.trim().split(' ');
-      firstname = parts[0] || '';
-      lastname  = parts.slice(1).join(' ') || '';
-    }
-
-    const practice = get(idx.practice) || get(idx.name) || '';
-    const rawPhone = get(idx.contactphone) || get(idx.phone) || '';
-    const phoneDigits = rawPhone.replace(/[^0-9]/g,'');
-    const phone = phoneDigits.length >= 7 ? rawPhone : '';
-
-    const emailStatus = get(idx.emailstatus).toUpperCase();
-    const rawEmail = get(idx.email);
-    const emailBad = emailStatus.indexOf('INVALID')>=0 || emailStatus.indexOf('UNKNOWN')>=0 ||
-                     emailStatus.indexOf('CANNOT')>=0 || emailStatus.indexOf('UNDELIVERABLE')>=0;
-    const email = (rawEmail.indexOf('@')>=0 && !emailBad) ? rawEmail : '';
-
-    const rawSite   = get(idx.website);
-    const rawDomain = get(idx.domain);
-    const isCarrier = function(s) {
-      const sl = s.toLowerCase();
-      for (let ci=0;ci<carrierWords.length;ci++) { if (sl.indexOf(carrierWords[ci])>=0) return true; }
-      return false;
-    };
-    const website =
-      (rawSite && !isCarrier(rawSite) && rawSite.indexOf('.')>=0 && rawSite.length < 100) ? rawSite :
-      (rawDomain && !isCarrier(rawDomain) && rawDomain.indexOf('.')>=0 && rawDomain.length < 80) ? rawDomain : '';
-
-    const street = get(idx.street) || get(idx.address) || '';
-    const city   = get(idx.city) || 'Louisville';
-    const zip    = get(idx.zip) || '';
-
-    const dedupeKey = phoneDigits || (firstname+lastname+city).toLowerCase().replace(/ /g,'');
-    if (dedupeKey && seen[dedupeKey]) { skipped++; continue; }
-    if (dedupeKey) seen[dedupeKey] = true;
-
-    const rating = parseFloat(get(idx.rating)) || 0;
-    const priority = rating >= 4.5 ? 'High' : rating >= 4.0 ? 'Medium' : 'Low';
-
-    contacts.push({
-      id:genId(), type:activeTab,
-      firstname:firstname, lastname:lastname, practice:practice,
-      phone:phone, email:email, website:website,
-      address:street, city:city, zip:zip,
-      source: activeTab==='chiro' ? 'Google Maps' : 'Apollo.io',
-      priority:priority,
-      notes:'', touch:1, completed:false,
-      nextActionDate:todayStr(), lastContactDate:'', createdAt:todayStr()
-    });
-    added++;
-  }
-
-  renderTable(); closeImportModal();
-  scheduleSave();
-  alert('Imported ' + added + ' contact' + (added!==1?'s':'') + (skipped>0?' ('+skipped+' duplicates skipped)':'') + ' - saving to Google Sheets...');
-}
-
 
 // ── MODAL ─────────────────────────────────────────────────────────────
 function openAddModal() {
-  editingId=null;
-  document.getElementById('modal-title').textContent='Add Contact';
-  ['firstname','lastname','practice','phone','email','website','address','city','zip','notes'].forEach(f=>{document.getElementById('f-'+f).value='';});
-  document.getElementById('f-type').value=activeTab;
-  document.getElementById('f-priority').value='High';
-  document.getElementById('f-source').value=activeTab==='chiro'?'Google Maps':'Apollo.io';
-  document.getElementById('f-nextdate').value=todayStr();
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'Add Contact';
+  ['firstname','lastname','practice','phone','email','website','address','city','zip','notes'].forEach(f => document.getElementById('f-'+f).value = '');
+  document.getElementById('f-type').value = activeTab;
+  document.getElementById('f-priority').value = 'High';
+  document.getElementById('f-source').value = activeTab === 'chiro' ? 'Google Maps' : 'Apollo.io';
+  document.getElementById('f-nextdate').value = todayStr();
   document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
 function openEditModal(id) {
-  const c=contacts.find(x=>x.id===id); if (!c) return;
-  editingId=id;
-  document.getElementById('modal-title').textContent='Edit Contact';
-  document.getElementById('f-firstname').value=c.firstname||'';
-  document.getElementById('f-lastname').value=c.lastname||'';
-  document.getElementById('f-practice').value=c.practice||'';
-  document.getElementById('f-type').value=c.type||activeTab;
-  document.getElementById('f-priority').value=c.priority||'High';
-  document.getElementById('f-phone').value=c.phone||'';
-  document.getElementById('f-email').value=c.email||'';
-  document.getElementById('f-website').value=c.website||'';
-  document.getElementById('f-address').value=c.address||'';
-  document.getElementById('f-city').value=c.city||'';
-  document.getElementById('f-zip').value=c.zip||'';
-  document.getElementById('f-source').value=c.source||'';
-  document.getElementById('f-nextdate').value=c.nextActionDate||todayStr();
-  document.getElementById('f-notes').value=c.notes||'';
+  const c = contacts.find(x => x.id === id);
+  if (!c) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = 'Edit Contact';
+  ['firstname','lastname','practice','phone','email','website','address','city','zip','notes'].forEach(f => document.getElementById('f-'+f).value = c[f]||'');
+  document.getElementById('f-type').value = c.type||activeTab;
+  document.getElementById('f-priority').value = c.priority||'High';
+  document.getElementById('f-source').value = c.source||'';
+  document.getElementById('f-nextdate').value = c.nextActionDate||todayStr();
   document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
-function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); editingId=null; }
+function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); editingId = null; }
 
-function saveContact() {
-  const firstname=document.getElementById('f-firstname').value.trim();
-  const lastname=document.getElementById('f-lastname').value.trim();
+async function saveContact() {
+  const firstname = document.getElementById('f-firstname').value.trim();
+  const lastname = document.getElementById('f-lastname').value.trim();
   if (!firstname && !lastname) { alert('Please enter a name.'); return; }
 
   const fields = {
     firstname, lastname,
-    practice:document.getElementById('f-practice').value.trim(),
-    type:document.getElementById('f-type').value,
-    priority:document.getElementById('f-priority').value,
-    phone:document.getElementById('f-phone').value.trim(),
-    email:document.getElementById('f-email').value.trim(),
-    website:document.getElementById('f-website').value.trim(),
-    address:document.getElementById('f-address').value.trim(),
-    city:document.getElementById('f-city').value.trim(),
-    zip:document.getElementById('f-zip').value.trim(),
-    source:document.getElementById('f-source').value,
-    nextActionDate:document.getElementById('f-nextdate').value||todayStr(),
-    notes:document.getElementById('f-notes').value.trim()
+    practice: document.getElementById('f-practice').value.trim(),
+    type: document.getElementById('f-type').value,
+    priority: document.getElementById('f-priority').value,
+    phone: document.getElementById('f-phone').value.trim(),
+    email: document.getElementById('f-email').value.trim(),
+    website: document.getElementById('f-website').value.trim(),
+    address: document.getElementById('f-address').value.trim(),
+    city: document.getElementById('f-city').value.trim(),
+    zip: document.getElementById('f-zip').value.trim(),
+    source: document.getElementById('f-source').value,
+    nextActionDate: document.getElementById('f-nextdate').value || todayStr(),
+    notes: document.getElementById('f-notes').value.trim()
   };
 
-  if (editingId) {
-    const c=contacts.find(x=>x.id===editingId);
-    if (c) Object.assign(c,fields);
-  } else {
-    contacts.push({id:genId(),touch:1,completed:false,lastContactDate:'',createdAt:todayStr(),...fields});
-  }
+  closeModal();
 
-  renderTable(); closeModal();
-  if (editingId && selectedId===editingId) renderDetail();
-  scheduleSave();
+  if (editingId) {
+    const c = contacts.find(x => x.id === editingId);
+    if (c) { Object.assign(c, fields); renderTable(); if (selectedId===editingId) renderDetail(); await updateContactInSheet(c); }
+  } else {
+    const c = { id: genId(), touch: 1, completed: false, lastContactDate: '', createdAt: todayStr(), ...fields };
+    contacts.push(c);
+    renderTable(); updateStats();
+    await addContactToSheet(c);
+  }
 }
 
-document.getElementById('modal-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
-document.getElementById('import-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeImportModal();});
+document.getElementById('modal-overlay').addEventListener('click', e => { if (e.target===e.currentTarget) closeModal(); });
+document.getElementById('import-modal-overlay').addEventListener('click', e => { if (e.target===e.currentTarget) closeImportModal(); });
+
+// ── OUTSCRAPER IMPORT ─────────────────────────────────────────────────
+function openImportModal() {
+  document.getElementById('imp-tabname').value = '';
+  document.getElementById('imp-type').value = activeTab;
+  document.getElementById('imp-priority').value = 'Medium';
+  document.getElementById('imp-col-email').value = '';
+  document.getElementById('imp-col-phone').value = '';
+  document.getElementById('imp-col-name').value = '';
+  document.getElementById('imp-col-site').value = '';
+  document.getElementById('import-status').textContent = '';
+  document.getElementById('import-modal-overlay').classList.remove('hidden');
+}
+
+function closeImportModal() {
+  document.getElementById('import-modal-overlay').classList.add('hidden');
+}
+
+async function runImport() {
+  const tabName  = document.getElementById('imp-tabname').value.trim();
+  const type     = document.getElementById('imp-type').value;
+  const priority = document.getElementById('imp-priority').value;
+  const status   = document.getElementById('import-status');
+
+  if (!tabName) { status.textContent = '⚠ Please enter the tab name.'; status.style.color='var(--red)'; return; }
+
+  const overrides = {
+    email:   document.getElementById('imp-col-email').value.trim(),
+    phone:   document.getElementById('imp-col-phone').value.trim(),
+    practice: document.getElementById('imp-col-name').value.trim(),
+    website: document.getElementById('imp-col-site').value.trim(),
+  };
+
+  status.textContent = 'Reading sheet…'; status.style.color = 'var(--mid)';
+
+  try {
+    const res = await fetch(
+      `${BASE_URL}/values/${encodeURIComponent(tabName + '!A1:AZ2000')}?key=${API_KEY}`
+    ).then(r => r.json());
+
+    if (res.error) { status.textContent = `⚠ ${res.error.message}`; status.style.color='var(--red)'; return; }
+
+    const rows = res.values || [];
+    if (rows.length < 2) { status.textContent = '⚠ Sheet appears empty or has only a header row.'; status.style.color='var(--red)'; return; }
+
+    const headers  = rows[0];
+    const fieldIdx = matchOutscraperHeader(headers, overrides);
+    status.textContent = `Detected columns: ${Object.entries(fieldIdx).map(([k,v])=>`${k}→${headers[v]}`).join(', ')}`;
+
+    const parsed = rows.slice(1)
+      .filter(r => r.some(c => c))
+      .map(r => parseOutscraperRow(r, fieldIdx, type, priority))
+      .filter(c => c.practice || c.firstname || c.lastname);
+
+    // Deduplicate by phone, then by practice name
+    const seenPhone = new Set();
+    const seenName  = new Set();
+    const newContacts = parsed.filter(c => {
+      const phone = c.phone.replace(/\D/g,'');
+      const name  = c.practice.toLowerCase().trim();
+      if (phone && seenPhone.has(phone)) return false;
+      if (!phone && name && seenName.has(name)) return false;
+      if (phone) seenPhone.add(phone);
+      if (name)  seenName.add(name);
+      return true;
+    });
+
+    if (!newContacts.length) { status.textContent = '⚠ No valid contacts found. Check the tab name and column headers.'; status.style.color='var(--red)'; return; }
+
+    status.textContent = `Importing ${newContacts.length} contacts…`; status.style.color='var(--mid)';
+
+    const crmSheet = type === 'chiro' ? CHIRO_SHEET : PI_SHEET;
+
+    // Batch append all rows
+    const values = newContacts.map(c => contactToRow(c));
+    await fetch(
+      `${BASE_URL}/values/${encodeURIComponent(crmSheet + '!A:A')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS&key=${API_KEY}`,
+      { method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ range: crmSheet + '!A:A', majorDimension: 'ROWS', values }) }
+    );
+
+    contacts.push(...newContacts);
+    renderTable(); updateStats();
+    closeImportModal();
+    showToast(`✓ Imported ${newContacts.length} contacts from "${tabName}"`);
+  } catch(e) {
+    status.textContent = '⚠ Import failed. Check tab name and sheet permissions.';
+    status.style.color = 'var(--red)';
+    console.error(e);
+  }
+}
 
 // ── INIT ──────────────────────────────────────────────────────────────
 loadFromSheets();
