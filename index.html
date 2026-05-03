@@ -314,9 +314,10 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────────────
-const SHEET_ID = '1-qdfnwAP9siadhB_ePkwNt0Nm7K4AZXuei2ZCWTW2k0';
-const API_KEY  = 'AIzaSyAAqpieBssS21pv8zOesFnpBOR-VYIP4V4';
-const BASE_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`;
+const SHEET_ID   = '1-qdfnwAP9siadhB_ePkwNt0Nm7K4AZXuei2ZCWTW2k0';
+const API_KEY    = 'AIzaSyAAqpieBssS21pv8zOesFnpBOR-VYIP4V4';
+const BASE_URL   = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`;
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyBcoiaJIS0Fje3hOnoKorRJZwzWiyuqaPHQvwuYHRaD0qJugzlG4L_sJ4I9S0n5TNaPQ/exec';
 
 // Sheet tab names — must match exactly in Google Sheets
 const CHIRO_SHEET = 'Chiropractors';
@@ -487,34 +488,23 @@ function showToast(msg, duration = 2500) {
   setTimeout(() => t.classList.remove('show'), duration);
 }
 
+// ── APPS SCRIPT WRITE HELPER ──────────────────────────────────────────
+async function scriptPost(payload) {
+  const res = await fetch(SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+
 // ── INIT SHEETS ───────────────────────────────────────────────────────
 async function initSheets() {
-  // Ensure both tabs exist with header rows
   try {
-    const meta = await fetch(`${BASE_URL}?key=${API_KEY}`).then(r => r.json());
-    const existing = (meta.sheets || []).map(s => s.properties.title);
-
-    const toCreate = [];
-    if (!existing.includes(CHIRO_SHEET)) toCreate.push(CHIRO_SHEET);
-    if (!existing.includes(PI_SHEET)) toCreate.push(PI_SHEET);
-
-    if (toCreate.length > 0) {
-      await fetch(`${BASE_URL}:batchUpdate?key=${API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          requests: toCreate.map(title => ({ addSheet: { properties: { title } } }))
-        })
-      });
-    }
-
-    // Write headers if sheets are new or empty
-    for (const sheet of [CHIRO_SHEET, PI_SHEET]) {
-      const check = await fetch(`${BASE_URL}/values/${encodeURIComponent(sheet + '!A1')}?key=${API_KEY}`).then(r => r.json());
-      if (!check.values) {
-        await writeRow(sheet, 1, COLS);
-      }
-    }
+    await Promise.all([
+      scriptPost({ action: 'ensureSheet', sheet: CHIRO_SHEET, headers: COLS }),
+      scriptPost({ action: 'ensureSheet', sheet: PI_SHEET,    headers: COLS })
+    ]);
   } catch(e) {
     console.warn('Init sheets error:', e);
   }
@@ -556,34 +546,14 @@ async function loadFromSheets() {
 }
 
 // ── WRITE HELPERS ─────────────────────────────────────────────────────
-async function writeRow(sheet, rowNum, values) {
-  const range = `${sheet}!A${rowNum}`;
-  await fetch(`${BASE_URL}/values/${encodeURIComponent(range)}?valueInputOption=RAW&key=${API_KEY}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ range, majorDimension: 'ROWS', values: [values] })
-  });
-}
-
 async function appendRow(sheet, values) {
-  const range = `${sheet}!A:A`;
-  await fetch(`${BASE_URL}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS&key=${API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ range, majorDimension: 'ROWS', values: [values] })
-  });
+  await scriptPost({ action: 'append', sheet, values });
 }
 
 async function updateContactInSheet(c) {
   setSyncStatus('syncing', 'Saving...');
   try {
-    // Find row number in the sheet
-    const sheet = sheetName(c.type);
-    const res = await fetch(`${BASE_URL}/values/${encodeURIComponent(sheet + '!A2:A1000')}?key=${API_KEY}`).then(r => r.json());
-    const ids = (res.values || []).map(r => r[0]);
-    const rowIdx = ids.indexOf(c.id);
-    if (rowIdx === -1) { showToast('⚠ Could not find contact row.'); return; }
-    await writeRow(sheet, rowIdx + 2, contactToRow(c));
+    await scriptPost({ action: 'update', sheet: sheetName(c.type), id: c.id, values: contactToRow(c) });
     setSyncStatus('ok', 'Saved to Google Sheets');
     showToast('✓ Saved');
   } catch(e) {
@@ -609,26 +579,7 @@ async function addContactToSheet(c) {
 async function deleteContactFromSheet(c) {
   setSyncStatus('syncing', 'Deleting...');
   try {
-    const sheet = sheetName(c.type);
-    const res = await fetch(`${BASE_URL}/values/${encodeURIComponent(sheet + '!A2:A1000')}?key=${API_KEY}`).then(r => r.json());
-    const ids = (res.values || []).map(r => r[0]);
-    const rowIdx = ids.indexOf(c.id);
-    if (rowIdx === -1) return;
-
-    // Get sheet gid
-    const meta = await fetch(`${BASE_URL}?key=${API_KEY}`).then(r => r.json());
-    const sheetMeta = meta.sheets.find(s => s.properties.title === sheet);
-    if (!sheetMeta) return;
-    const sheetGid = sheetMeta.properties.sheetId;
-    const actualRow = rowIdx + 1; // 0-indexed, row 1 = data row 0 after header
-
-    await fetch(`${BASE_URL}:batchUpdate?key=${API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requests: [{ deleteDimension: { range: { sheetId: sheetGid, dimension: 'ROWS', startIndex: actualRow, endIndex: actualRow + 1 } } }]
-      })
-    });
+    await scriptPost({ action: 'deleteRow', sheet: sheetName(c.type), id: c.id });
     setSyncStatus('ok', 'Deleted');
     showToast('Contact removed');
   } catch(e) {
@@ -1137,13 +1088,10 @@ async function runImport() {
 
     const crmSheet = type === 'chiro' ? CHIRO_SHEET : PI_SHEET;
 
-    // Batch append all rows
-    const values = newContacts.map(c => contactToRow(c));
-    await fetch(
-      `${BASE_URL}/values/${encodeURIComponent(crmSheet + '!A:A')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS&key=${API_KEY}`,
-      { method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ range: crmSheet + '!A:A', majorDimension: 'ROWS', values }) }
-    );
+    // Append each contact via Apps Script
+    for (const c of newContacts) {
+      await scriptPost({ action: 'append', sheet: crmSheet, values: contactToRow(c) });
+    }
 
     contacts.push(...newContacts);
     renderTable(); updateStats();
