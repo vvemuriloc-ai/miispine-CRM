@@ -1081,16 +1081,15 @@ async function runImport() {
       .map(r => parseOutscraperRow(r, fieldIdx, type, priority))
       .filter(c => c.practice || c.firstname || c.lastname);
 
-    // Deduplicate by phone, then by practice name
-    const seenPhone = new Set();
-    const seenName  = new Set();
+    // Deduplicate only when both name AND phone match (same business listed twice)
+    const seen = new Set();
     const newContacts = parsed.filter(c => {
       const phone = c.phone.replace(/\D/g,'');
       const name  = c.practice.toLowerCase().trim();
-      if (phone && seenPhone.has(phone)) return false;
-      if (!phone && name && seenName.has(name)) return false;
-      if (phone) seenPhone.add(phone);
-      if (name)  seenName.add(name);
+      const key   = `${phone}||${name}`;
+      if (key === '||') return true; // no phone and no name — keep it
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
 
