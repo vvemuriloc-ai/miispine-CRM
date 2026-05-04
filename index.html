@@ -641,8 +641,10 @@ async function appendRow(sheet, values) {
 
 async function updateContactInSheet(c) {
   setSyncStatus('syncing', 'Saving...');
+  lastWriteTime = Date.now();
   try {
     await scriptPost({ action: 'update', sheet: sheetName(c.type), id: c.id, values: contactToRow(c) });
+    lastWriteTime = Date.now();
     setSyncStatus('ok', 'Saved to Google Sheets');
     showToast('✓ Saved');
   } catch(e) {
@@ -654,8 +656,10 @@ async function updateContactInSheet(c) {
 
 async function addContactToSheet(c) {
   setSyncStatus('syncing', 'Saving...');
+  lastWriteTime = Date.now();
   try {
     await appendRow(sheetName(c.type), contactToRow(c));
+    lastWriteTime = Date.now();
     setSyncStatus('ok', 'Saved to Google Sheets');
     showToast('✓ Contact added');
   } catch(e) {
@@ -1191,11 +1195,19 @@ async function runImport() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────
+let lastWriteTime = 0;
+let pollInterval = null;
+
+function startPolling() {
+  if (pollInterval) clearInterval(pollInterval); // prevent stacking
+  pollInterval = setInterval(() => {
+    const secsSinceWrite = (Date.now() - lastWriteTime) / 1000;
+    if (!isSaving && secsSinceWrite > 10) loadFromSheets();
+  }, 30000);
+}
+
 loadFromSheets();
-// Auto-refresh every 30 seconds so all users see updates in near-real-time
-setInterval(() => {
-  if (!isSaving) loadFromSheets();
-}, 30000);
+startPolling();
 </script>
 </body>
 </html>
