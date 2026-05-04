@@ -355,6 +355,9 @@ let filterPriority = 'all';
 let searchQuery = '';
 let editingId = null;
 let isSaving = false;
+// Track contacts modified locally — key: phone+name, value: timestamp
+// Poll will not overwrite these until the sheet confirms the change
+const dirtyContacts = {};
 
 // ── SHEET HELPERS ─────────────────────────────────────────────────────
 function sheetName(type) { return type === 'chiro' ? CHIRO_SHEET : PI_SHEET; }
@@ -646,11 +649,7 @@ async function loadFromSheets() {
       // For each incoming contact, if we already have it in memory (matched by
       // phone+practice key), preserve any in-memory touch/completed state that
       // is AHEAD of what the sheet shows (i.e. a save is still propagating).
-      const makeKey = c => {
-        const phone = (c.phone || '').replace(/\D/g, '');
-        const name  = (c.practice || `${c.firstname} ${c.lastname}`).toLowerCase().trim();
-        return `${phone}||${name}`;
-      };
+      const makeKey = c => makeContactKey(c);
 
       const memoryMap = {};
       contacts.forEach(c => { memoryMap[makeKey(c)] = c; });
@@ -658,19 +657,17 @@ async function loadFromSheets() {
       contacts = incoming.map(fresh => {
         const key = makeKey(fresh);
         const mem = memoryMap[key];
-        if (!mem) return fresh; // new contact from sheet, use as-is
+        if (!mem) return fresh;
 
-        // Carry forward the more advanced touch state
-        const freshTouch = parseInt(fresh.touch) || 1;
-        const memTouch   = parseInt(mem.touch)   || 1;
-
-        if (memTouch > freshTouch || mem.completed) {
-          // Our in-memory state is ahead — sheet hasn't caught up yet, keep memory
+        // If this contact was recently edited locally and save may not have
+        // propagated yet, keep the in-memory version unconditionally
+        if (dirtyContacts[key]) {
           return { ...fresh, id: mem.id, touch: mem.touch, completed: mem.completed,
                    nextActionDate: mem.nextActionDate, lastContactDate: mem.lastContactDate,
                    notes: mem.notes || fresh.notes };
         }
-        // Sheet is authoritative — use fresh data but preserve the id we assigned
+
+        // Otherwise sheet is authoritative — use fresh but keep our id
         return { ...fresh, id: mem.id || fresh.id };
       });
     }
@@ -699,6 +696,9 @@ async function updateContactInSheet(c) {
   try {
     await scriptPost({ action: 'update', sheet: sheetName(c.type), id: c.id, values: contactToRow(c) });
     lastWriteTime = Date.now();
+    // Clear dirty flag — sheet now has the correct state
+    const key = makeContactKey(c);
+    delete dirtyContacts[key];
     setSyncStatus('ok', 'Saved to Google Sheets');
     showToast('✓ Saved');
   } catch(e) {
@@ -864,6 +864,12 @@ Founder, miiSpine
 };
 
 // ── HELPERS ───────────────────────────────────────────────────────────
+function makeContactKey(c) {
+  const phone = (c.phone || '').replace(/\D/g, '');
+  const name  = (c.practice || `${c.firstname} ${c.lastname}`).toLowerCase().trim();
+  return `${phone}||${name}`;
+}
+
 function todayStr() { return new Date().toISOString().split('T')[0]; }
 function addDays(str, n) { const d = new Date(str); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]; }
 function fmtDate(str) { if (!str) return '—'; const d = new Date(str + 'T12:00:00'); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
@@ -1080,6 +1086,10 @@ async function setTouch(id, step) {
   }
   c.lastContactDate = todayStr();
 
+  // Mark dirty so poll won't overwrite before sheet confirms
+  const key = makeContactKey(c);
+  dirtyContacts[key] = { touch: c.touch, completed: c.completed, ts: Date.now() };
+
   renderTable(); updateStats(); if (selectedId === id) renderDetail();
   await updateContactInSheet(c);
 }
@@ -1091,6 +1101,10 @@ async function advanceTouch(id) {
   c.touch += 1;
   if (c.touch > 3) { c.completed = true; c.nextActionDate = ''; }
   else { c.nextActionDate = addDays(todayStr(), TOUCH_DAYS_DELTA[c.touch-1]); }
+
+  const key = makeContactKey(c);
+  dirtyContacts[key] = { touch: c.touch, completed: c.completed, ts: Date.now() };
+
   renderTable(); updateStats(); if (selectedId===id) renderDetail();
   await updateContactInSheet(c);
 }
