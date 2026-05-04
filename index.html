@@ -404,15 +404,14 @@ function rowToContact(row, type, headerMap) {
   }
 
   // Map "Touch Status" string from clean sheet → numeric touch
-  // touch = the CURRENT touch they are ON (not yet sent)
-  // "Touch 1 Sent" means touch 1 is done, now on touch 2
+  // touch = which touch they are CURRENTLY ON (about to send)
+  // dots: all touches BEFORE current show green, current shows orange
   if (!c.touch && c.touchStatus) {
     const ts = String(c.touchStatus).toLowerCase().trim();
-    if (ts === 'complete')          { c.touch = 4; c.completed = true; }
-    else if (ts === 'touch 3 sent') { c.touch = 4; c.completed = true; }
-    else if (ts === 'touch 2 sent')   c.touch = 3;
-    else if (ts === 'touch 1 sent')   c.touch = 2;
-    else                              c.touch = 1; // 'not started' or blank
+    if (ts === 'complete' || ts === 'touch 3 sent') { c.touch = 4; c.completed = true; }
+    else if (ts === 'touch 2 sent') c.touch = 3;  // 2 green dots, on touch 3
+    else if (ts === 'touch 1 sent') c.touch = 2;  // 1 green dot, on touch 2
+    else                            c.touch = 1;  // 0 green dots, on touch 1
   }
   c.touch = parseInt(c.touch) || 1;
   c.completed = c.completed === 'true' || c.completed === true;
@@ -692,10 +691,8 @@ async function appendRow(sheet, values) {
 
 async function updateContactInSheet(c) {
   setSyncStatus('syncing', 'Saving...');
-  lastWriteTime = Date.now();
   try {
     await scriptPost({ action: 'update', sheet: sheetName(c.type), id: c.id, values: contactToRow(c) });
-    lastWriteTime = Date.now();
     // Clear dirty flag — sheet now has the correct state
     const key = makeContactKey(c);
     delete dirtyContacts[key];
@@ -710,10 +707,8 @@ async function updateContactInSheet(c) {
 
 async function addContactToSheet(c) {
   setSyncStatus('syncing', 'Saving...');
-  lastWriteTime = Date.now();
   try {
     await appendRow(sheetName(c.type), contactToRow(c));
-    lastWriteTime = Date.now();
     setSyncStatus('ok', 'Saved to Google Sheets');
     showToast('✓ Contact added');
   } catch(e) {
@@ -1296,19 +1291,7 @@ async function runImport() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────
-let lastWriteTime = 0;
-let pollInterval = null;
-
-function startPolling() {
-  if (pollInterval) clearInterval(pollInterval); // prevent stacking
-  pollInterval = setInterval(() => {
-    const secsSinceWrite = (Date.now() - lastWriteTime) / 1000;
-    if (!isSaving && secsSinceWrite > 15) loadFromSheets();
-  }, 30000);
-}
-
 loadFromSheets();
-startPolling();
 </script>
 </body>
 </html>
