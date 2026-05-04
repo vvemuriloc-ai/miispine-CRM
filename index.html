@@ -401,12 +401,15 @@ function rowToContact(row, type, headerMap) {
   }
 
   // Map "Touch Status" string from clean sheet → numeric touch
+  // touch = the CURRENT touch they are ON (not yet sent)
+  // "Touch 1 Sent" means touch 1 is done, now on touch 2
   if (!c.touch && c.touchStatus) {
     const ts = String(c.touchStatus).toLowerCase().trim();
-    if (ts === 'complete' || ts === 'touch 3 sent') { c.touch = 4; c.completed = true; }
-    else if (ts === 'touch 2 sent') c.touch = 3;
-    else if (ts === 'touch 1 sent') c.touch = 2;
-    else c.touch = 1;
+    if (ts === 'complete')          { c.touch = 4; c.completed = true; }
+    else if (ts === 'touch 3 sent') { c.touch = 4; c.completed = true; }
+    else if (ts === 'touch 2 sent')   c.touch = 3;
+    else if (ts === 'touch 1 sent')   c.touch = 2;
+    else                              c.touch = 1; // 'not started' or blank
   }
   c.touch = parseInt(c.touch) || 1;
   c.completed = c.completed === 'true' || c.completed === true;
@@ -1022,13 +1025,26 @@ function renderDetail() {
       </div>
     </div>
     <div class="touch-progress">
-      <div class="tp-label">Sequence Progress</div>
+      <div class="tp-label">Sequence Progress — click any step to set</div>
       <div class="tp-steps">${steps}</div>
-      <div class="advance-row">
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button onclick="setTouch('${c.id}',1)" style="flex:1;padding:6px 4px;border:1px solid var(--border);background:${c.touch===1&&!isComplete?'var(--orange)':c.touch>1?'var(--teal)':'white'};color:${c.touch>=1?'white':'var(--mid)'};border-radius:6px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer">
+          ${c.touch>1?'✓ ':c.touch===1&&!isComplete?'→ ':''}Cold Intro
+        </button>
+        <button onclick="setTouch('${c.id}',2)" style="flex:1;padding:6px 4px;border:1px solid var(--border);background:${c.touch===2&&!isComplete?'var(--orange)':c.touch>2?'var(--teal)':'white'};color:${c.touch>2?'white':c.touch===2&&!isComplete?'white':'var(--mid)'};border-radius:6px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer">
+          ${c.touch>2?'✓ ':c.touch===2&&!isComplete?'→ ':''}Post-Visit
+        </button>
+        <button onclick="setTouch('${c.id}',3)" style="flex:1;padding:6px 4px;border:1px solid var(--border);background:${c.touch===3&&!isComplete?'var(--orange)':c.touch>3?'var(--teal)':'white'};color:${c.touch>3?'white':c.touch===3&&!isComplete?'white':'var(--mid)'};border-radius:6px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer">
+          ${c.touch>3?'✓ ':c.touch===3&&!isComplete?'→ ':''}Lunch Close
+        </button>
+        <button onclick="setTouch('${c.id}','complete')" style="flex:1;padding:6px 4px;border:1px solid var(--border);background:${isComplete?'var(--teal)':'white'};color:${isComplete?'white':'var(--mid)'};border-radius:6px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer">
+          ${isComplete?'✓ ':''}Complete
+        </button>
+      </div>
+      <div style="margin-top:8px">
         <button class="advance-full-btn" onclick="advanceTouch('${c.id}')" ${isComplete?'disabled':''}>
           ${isComplete?'✓ Sequence Complete':`Mark Touch ${c.touch} Done → Advance`}
         </button>
-        ${!isComplete?`<button class="complete-btn" onclick="markComplete('${c.id}')">Skip</button>`:''}
       </div>
     </div>
     <div class="detail-section">
@@ -1048,6 +1064,26 @@ function renderDetail() {
 }
 
 // ── ACTIONS ───────────────────────────────────────────────────────────
+async function setTouch(id, step) {
+  const c = contacts.find(x => x.id === id);
+  if (!c) return;
+
+  if (step === 'complete') {
+    c.touch = 4;
+    c.completed = true;
+    c.nextActionDate = '';
+  } else {
+    const t = parseInt(step);
+    c.touch = t;
+    c.completed = false;
+    c.nextActionDate = addDays(todayStr(), TOUCH_DAYS_DELTA[t - 1] || 0);
+  }
+  c.lastContactDate = todayStr();
+
+  renderTable(); updateStats(); if (selectedId === id) renderDetail();
+  await updateContactInSheet(c);
+}
+
 async function advanceTouch(id) {
   const c = contacts.find(x => x.id === id);
   if (!c || c.touch > 3) return;
