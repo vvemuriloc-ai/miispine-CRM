@@ -400,8 +400,16 @@ function rowToContact(row, type, headerMap) {
     COLS.forEach((col, i) => { c[col] = row[i] !== undefined ? String(row[i]) : ''; });
   }
 
+  // Map "Touch Status" string from clean sheet → numeric touch
+  if (!c.touch && c.touchStatus) {
+    const ts = String(c.touchStatus).toLowerCase().trim();
+    if (ts === 'complete' || ts === 'touch 3 sent') { c.touch = 4; c.completed = true; }
+    else if (ts === 'touch 2 sent') c.touch = 3;
+    else if (ts === 'touch 1 sent') c.touch = 2;
+    else c.touch = 1;
+  }
   c.touch = parseInt(c.touch) || 1;
-  c.completed = c.completed === 'true';
+  c.completed = c.completed === 'true' || c.completed === true;
 
   // Assign id if missing
   if (!c.id) c.id = genId();
