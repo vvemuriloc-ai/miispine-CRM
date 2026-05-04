@@ -602,10 +602,15 @@ async function initSheets() {
 }
 
 // ── READ FROM SHEETS ──────────────────────────────────────────────────
+let isInitialLoad = true;
+
 async function loadFromSheets() {
+  // On background polls, don't show loading overlay
+  if (isInitialLoad) {
+    document.getElementById('loading-overlay').classList.remove('hidden');
+    document.getElementById('loading-text').textContent = 'Loading contacts...';
+  }
   setSyncStatus('syncing', 'Loading...');
-  document.getElementById('loading-overlay').classList.remove('hidden');
-  document.getElementById('loading-text').textContent = 'Loading contacts...';
 
   try {
     const [chiroRes, piRes] = await Promise.all([
@@ -616,10 +621,48 @@ async function loadFromSheets() {
     const chiroRows = chiroRes.values || [];
     const piRows    = piRes.values   || [];
 
-    contacts = [
+    const incoming = [
       ...parseCRMSheet(chiroRows, 'chiro'),
       ...parseCRMSheet(piRows, 'pi')
     ];
+
+    if (isInitialLoad) {
+      // First load — just use incoming data directly
+      contacts = incoming;
+      isInitialLoad = false;
+    } else {
+      // Background poll — merge incoming with current in-memory state.
+      // For each incoming contact, if we already have it in memory (matched by
+      // phone+practice key), preserve any in-memory touch/completed state that
+      // is AHEAD of what the sheet shows (i.e. a save is still propagating).
+      const makeKey = c => {
+        const phone = (c.phone || '').replace(/\D/g, '');
+        const name  = (c.practice || `${c.firstname} ${c.lastname}`).toLowerCase().trim();
+        return `${phone}||${name}`;
+      };
+
+      const memoryMap = {};
+      contacts.forEach(c => { memoryMap[makeKey(c)] = c; });
+
+      contacts = incoming.map(fresh => {
+        const key = makeKey(fresh);
+        const mem = memoryMap[key];
+        if (!mem) return fresh; // new contact from sheet, use as-is
+
+        // Carry forward the more advanced touch state
+        const freshTouch = parseInt(fresh.touch) || 1;
+        const memTouch   = parseInt(mem.touch)   || 1;
+
+        if (memTouch > freshTouch || mem.completed) {
+          // Our in-memory state is ahead — sheet hasn't caught up yet, keep memory
+          return { ...fresh, id: mem.id, touch: mem.touch, completed: mem.completed,
+                   nextActionDate: mem.nextActionDate, lastContactDate: mem.lastContactDate,
+                   notes: mem.notes || fresh.notes };
+        }
+        // Sheet is authoritative — use fresh data but preserve the id we assigned
+        return { ...fresh, id: mem.id || fresh.id };
+      });
+    }
 
     setSyncStatus('ok', 'Synced with Google Sheets');
     renderTable();
@@ -627,7 +670,7 @@ async function loadFromSheets() {
     if (selectedId) renderDetail();
   } catch(e) {
     setSyncStatus('error', 'Connection error');
-    showToast('⚠ Could not connect to Google Sheets. Check sharing settings.');
+    if (isInitialLoad) showToast('⚠ Could not connect to Google Sheets. Check sharing settings.');
     console.error(e);
   } finally {
     document.getElementById('loading-overlay').classList.add('hidden');
@@ -1202,7 +1245,7 @@ function startPolling() {
   if (pollInterval) clearInterval(pollInterval); // prevent stacking
   pollInterval = setInterval(() => {
     const secsSinceWrite = (Date.now() - lastWriteTime) / 1000;
-    if (!isSaving && secsSinceWrite > 10) loadFromSheets();
+    if (!isSaving && secsSinceWrite > 15) loadFromSheets();
   }, 30000);
 }
 
