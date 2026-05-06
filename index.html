@@ -176,9 +176,9 @@
 
 <!-- LOADING -->
 
-<div class="loading-overlay" id="loading-overlay">
+<div class="loading-overlay hidden" id="loading-overlay">
   <div class="spinner"></div>
-  <div class="loading-text" id="loading-text">Connecting to Google Sheets...</div>
+  <div class="loading-text" id="loading-text">Loading contacts...</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1322,7 +1322,13 @@ console.error(e);
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────
-loadFromSheets();
+// Safety net — never freeze the screen longer than 10 seconds
+const loadingTimeout = setTimeout(() => {
+document.getElementById(‘loading-overlay’).classList.add(‘hidden’);
+setSyncStatus(‘error’, ‘Load timed out — hit ↻ Refresh’);
+}, 10000);
+
+loadFromSheets().finally(() => clearTimeout(loadingTimeout));
 </script>
 
 </body>
