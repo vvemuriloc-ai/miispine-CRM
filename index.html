@@ -608,22 +608,10 @@ async function scriptPost(payload) {
 }
 
 // ── INIT SHEETS ───────────────────────────────────────────────────────
-async function initSheets() {
-  try {
-    await Promise.all([
-      scriptPost({ action: 'ensureSheet', sheet: CHIRO_SHEET, headers: COLS }),
-      scriptPost({ action: 'ensureSheet', sheet: PI_SHEET,    headers: COLS })
-    ]);
-  } catch(e) {
-    console.warn('Init sheets error:', e);
-  }
-}
-
 // ── READ FROM SHEETS ──────────────────────────────────────────────────
 let isInitialLoad = true;
 
 async function loadFromSheets() {
-  // On background polls, don't show loading overlay
   if (isInitialLoad) {
     document.getElementById('loading-overlay').classList.remove('hidden');
     document.getElementById('loading-text').textContent = 'Loading contacts...';
@@ -645,33 +633,21 @@ async function loadFromSheets() {
     ];
 
     if (isInitialLoad) {
-      // First load — just use incoming data directly
       contacts = incoming;
       isInitialLoad = false;
     } else {
-      // Background poll — merge incoming with current in-memory state.
-      // For each incoming contact, if we already have it in memory (matched by
-      // phone+practice key), preserve any in-memory touch/completed state that
-      // is AHEAD of what the sheet shows (i.e. a save is still propagating).
       const makeKey = c => makeContactKey(c);
-
       const memoryMap = {};
       contacts.forEach(c => { memoryMap[makeKey(c)] = c; });
-
       contacts = incoming.map(fresh => {
         const key = makeKey(fresh);
         const mem = memoryMap[key];
         if (!mem) return fresh;
-
-        // If this contact was recently edited locally and save may not have
-        // propagated yet, keep the in-memory version unconditionally
         if (dirtyContacts[key]) {
           return { ...fresh, id: mem.id, touch: mem.touch, completed: mem.completed,
                    nextActionDate: mem.nextActionDate, lastContactDate: mem.lastContactDate,
                    notes: mem.notes || fresh.notes };
         }
-
-        // Otherwise sheet is authoritative — use fresh but keep our id
         return { ...fresh, id: mem.id || fresh.id };
       });
     }
