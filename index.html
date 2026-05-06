@@ -627,6 +627,11 @@ async function loadFromSheets() {
     const chiroRows = chiroRes.values || [];
     const piRows    = piRes.values   || [];
 
+    // Log what we got for debugging
+    console.log('Chiro rows:', chiroRows.length, 'PI rows:', piRows.length);
+    if (chiroRes.error) console.error('Chiro sheet error:', chiroRes.error);
+    if (piRes.error)    console.error('PI sheet error:', piRes.error);
+
     const incoming = [
       ...parseCRMSheet(chiroRows, 'chiro'),
       ...parseCRMSheet(piRows, 'pi')
@@ -657,10 +662,10 @@ async function loadFromSheets() {
     updateStats();
     if (selectedId) renderDetail();
   } catch(e) {
-    setSyncStatus('error', 'Connection error');
-    if (isInitialLoad) showToast('⚠ Could not connect to Google Sheets. Check sharing settings.');
-    console.error(e);
+    setSyncStatus('error', 'Connection error — hit ↻ Refresh');
+    console.error('loadFromSheets error:', e);
   } finally {
+    isInitialLoad = false;
     document.getElementById('loading-overlay').classList.add('hidden');
   }
 }
