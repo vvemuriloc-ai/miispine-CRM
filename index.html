@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -9,166 +8,165 @@
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,400&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
 
 :root {
---orange: #F04E23;
---teal: #93D2C3;
---sand: #EBE2DF;
---light-sand: #F7F2F0;
---dark: #1A1410;
---mid: #5C4A3D;
---border: #D9CEC9;
---red: #C0392B;
---green: #27735A;
---yellow: #D4820A;
+  --orange: #F04E23;
+  --teal: #93D2C3;
+  --sand: #EBE2DF;
+  --light-sand: #F7F2F0;
+  --dark: #1A1410;
+  --mid: #5C4A3D;
+  --border: #D9CEC9;
+  --red: #C0392B;
+  --green: #27735A;
+  --yellow: #D4820A;
 }
 
-- { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: ‘DM Sans’, sans-serif; background: var(–dark); color: var(–dark); min-height: 100vh; display: flex; flex-direction: column; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(--dark); min-height: 100vh; display: flex; flex-direction: column; }
 
-.app-header { background: var(–dark); border-bottom: 1px solid rgba(255,255,255,0.08); padding: 14px 28px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
-.logo-mark { width: 34px; height: 34px; background: var(–orange); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-family: ‘Cormorant Garamond’, serif; font-size: 17px; font-weight: 700; color: white; }
-.app-title { font-family: ‘Cormorant Garamond’, serif; font-size: 19px; font-weight: 600; color: white; }
-.app-title span { color: var(–orange); }
+.app-header { background: var(--dark); border-bottom: 1px solid rgba(255,255,255,0.08); padding: 14px 28px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+.logo-mark { width: 34px; height: 34px; background: var(--orange); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-family: 'Cormorant Garamond', serif; font-size: 17px; font-weight: 700; color: white; }
+.app-title { font-family: 'Cormorant Garamond', serif; font-size: 19px; font-weight: 600; color: white; }
+.app-title span { color: var(--orange); }
 .sync-status { font-size: 11px; color: rgba(255,255,255,0.4); display: flex; align-items: center; gap: 6px; }
-.sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(–border); flex-shrink: 0; transition: background 0.3s; }
-.sync-dot.syncing { background: var(–yellow); animation: pulse 1s infinite; }
-.sync-dot.ok { background: var(–teal); }
-.sync-dot.error { background: var(–red); }
+.sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex-shrink: 0; transition: background 0.3s; }
+.sync-dot.syncing { background: var(--yellow); animation: pulse 1s infinite; }
+.sync-dot.ok { background: var(--teal); }
+.sync-dot.error { background: var(--red); }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 .header-stats { margin-left: auto; display: flex; gap: 20px; }
 .hstat { text-align: center; }
-.hstat-num { font-family: ‘DM Mono’, monospace; font-size: 18px; font-weight: 500; color: white; line-height: 1; }
+.hstat-num { font-family: 'DM Mono', monospace; font-size: 18px; font-weight: 500; color: white; line-height: 1; }
 .hstat-label { font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
 .hstat-num.overdue { color: #E74C3C; }
-.hstat-num.due { color: var(–orange); }
-.hstat-num.ok { color: var(–teal); }
+.hstat-num.due { color: var(--orange); }
+.hstat-num.ok { color: var(--teal); }
 
-.tab-bar { background: var(–dark); display: flex; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 0 28px; }
-.tab-btn { padding: 10px 22px; background: transparent; border: none; border-bottom: 2px solid transparent; font-family: ‘DM Sans’, sans-serif; font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.45); cursor: pointer; transition: all 0.15s; margin-bottom: -1px; }
+.tab-bar { background: var(--dark); display: flex; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 0 28px; }
+.tab-btn { padding: 10px 22px; background: transparent; border: none; border-bottom: 2px solid transparent; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.45); cursor: pointer; transition: all 0.15s; margin-bottom: -1px; }
 .tab-btn:hover { color: rgba(255,255,255,0.75); }
-.tab-btn.active { color: white; border-bottom-color: var(–orange); }
+.tab-btn.active { color: white; border-bottom-color: var(--orange); }
 
-.toolbar { background: var(–light-sand); border-bottom: 1px solid var(–border); padding: 10px 24px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.filter-group { display: flex; gap: 3px; background: white; border: 1px solid var(–border); border-radius: 8px; padding: 3px; }
-.filter-btn { padding: 5px 12px; border: none; background: transparent; border-radius: 6px; font-family: ‘DM Sans’, sans-serif; font-size: 12px; font-weight: 500; color: var(–mid); cursor: pointer; transition: all 0.15s; }
-.filter-btn.active { background: var(–orange); color: white; }
-.search-box { flex: 1; min-width: 160px; padding: 7px 12px; border: 1px solid var(–border); border-radius: 8px; font-family: ‘DM Sans’, sans-serif; font-size: 13px; background: white; color: var(–dark); outline: none; }
-.search-box:focus { border-color: var(–orange); }
-.toolbar-btn { padding: 7px 16px; border: none; border-radius: 8px; font-family: ‘DM Sans’, sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; white-space: nowrap; }
-.btn-add { background: var(–orange); color: white; }
-.btn-refresh { background: white; color: var(–dark); border: 1px solid var(–border); }
+.toolbar { background: var(--light-sand); border-bottom: 1px solid var(--border); padding: 10px 24px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.filter-group { display: flex; gap: 3px; background: white; border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+.filter-btn { padding: 5px 12px; border: none; background: transparent; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--mid); cursor: pointer; transition: all 0.15s; }
+.filter-btn.active { background: var(--orange); color: white; }
+.search-box { flex: 1; min-width: 160px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; background: white; color: var(--dark); outline: none; }
+.search-box:focus { border-color: var(--orange); }
+.toolbar-btn { padding: 7px 16px; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; white-space: nowrap; }
+.btn-add { background: var(--orange); color: white; }
+.btn-refresh { background: white; color: var(--dark); border: 1px solid var(--border); }
 .toolbar-btn:hover { opacity: 0.85; }
 .btn-import { background: #2A7A6A; color: white; }
 .btn-map { background: #2C5F8A; color: white; }
 
 .main-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
-.table-panel { flex: 1; overflow: auto; background: var(–light-sand); }
+.table-panel { flex: 1; overflow: auto; background: var(--light-sand); }
 .contact-table { width: 100%; border-collapse: collapse; min-width: 860px; }
-.contact-table thead th { position: sticky; top: 0; background: var(–sand); padding: 9px 14px; text-align: left; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(–mid); border-bottom: 1px solid var(–border); white-space: nowrap; z-index: 2; }
-.contact-table tbody tr { border-bottom: 1px solid var(–border); cursor: pointer; transition: background 0.12s; }
+.contact-table thead th { position: sticky; top: 0; background: var(--sand); padding: 9px 14px; text-align: left; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mid); border-bottom: 1px solid var(--border); white-space: nowrap; z-index: 2; }
+.contact-table tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s; }
 .contact-table tbody tr:hover { background: white; }
-.contact-table tbody tr.selected { background: white; box-shadow: inset 3px 0 0 var(–orange); }
-.contact-table td { padding: 10px 14px; font-size: 12px; color: var(–dark); vertical-align: middle; }
+.contact-table tbody tr.selected { background: white; box-shadow: inset 3px 0 0 var(--orange); }
+.contact-table td { padding: 10px 14px; font-size: 12px; color: var(--dark); vertical-align: middle; }
 .contact-name { font-weight: 600; font-size: 13px; }
-.contact-sub { font-size: 11px; color: var(–mid); margin-top: 1px; }
+.contact-sub { font-size: 11px; color: var(--mid); margin-top: 1px; }
 .touch-pips { display: inline-flex; align-items: center; gap: 4px; }
-.tp { width: 8px; height: 8px; border-radius: 50%; background: var(–border); }
-.tp.done { background: var(–teal); }
-.tp.current { background: var(–orange); }
-.status-overdue { color: var(–red); font-size: 11px; font-weight: 600; }
-.status-due { color: var(–yellow); font-size: 11px; font-weight: 600; }
-.status-ok { color: var(–green); font-size: 11px; }
-.status-complete { color: var(–mid); font-size: 11px; }
-.priority-high { color: var(–red); font-weight: 700; font-size: 11px; }
-.priority-med { color: var(–yellow); font-weight: 600; font-size: 11px; }
-.priority-low { color: var(–mid); font-size: 11px; }
+.tp { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+.tp.done { background: var(--teal); }
+.tp.current { background: var(--orange); }
+.status-overdue { color: var(--red); font-size: 11px; font-weight: 600; }
+.status-due { color: var(--yellow); font-size: 11px; font-weight: 600; }
+.status-ok { color: var(--green); font-size: 11px; }
+.status-complete { color: var(--mid); font-size: 11px; }
+.priority-high { color: var(--red); font-weight: 700; font-size: 11px; }
+.priority-med { color: var(--yellow); font-weight: 600; font-size: 11px; }
+.priority-low { color: var(--mid); font-size: 11px; }
 .action-cell { display: flex; gap: 5px; align-items: center; }
-.icon-btn { padding: 3px 8px; border: 1px solid var(–border); background: white; border-radius: 5px; font-size: 11px; cursor: pointer; font-family: ‘DM Sans’, sans-serif; color: var(–mid); transition: all 0.12s; }
-.icon-btn:hover { border-color: var(–orange); color: var(–orange); }
-.icon-btn.advance { background: var(–orange); color: white; border-color: var(–orange); }
+.icon-btn { padding: 3px 8px; border: 1px solid var(--border); background: white; border-radius: 5px; font-size: 11px; cursor: pointer; font-family: 'DM Sans', sans-serif; color: var(--mid); transition: all 0.12s; }
+.icon-btn:hover { border-color: var(--orange); color: var(--orange); }
+.icon-btn.advance { background: var(--orange); color: white; border-color: var(--orange); }
 
-.detail-panel { width: 400px; flex-shrink: 0; background: white; border-left: 1px solid var(–border); display: flex; flex-direction: column; overflow-y: auto; }
-.detail-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(–mid); padding: 40px; text-align: center; }
+.detail-panel { width: 400px; flex-shrink: 0; background: white; border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+.detail-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--mid); padding: 40px; text-align: center; }
 .detail-empty .empty-icon { font-size: 32px; opacity: 0.3; }
 .detail-empty p { font-size: 13px; opacity: 0.6; line-height: 1.5; }
-.detail-header { padding: 18px 20px 14px; border-bottom: 1px solid var(–border); background: var(–light-sand); }
-.detail-name { font-family: ‘Cormorant Garamond’, serif; font-size: 22px; font-weight: 600; color: var(–dark); margin: 6px 0 2px; }
-.detail-practice { font-size: 12px; color: var(–mid); }
+.detail-header { padding: 18px 20px 14px; border-bottom: 1px solid var(--border); background: var(--light-sand); }
+.detail-name { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; color: var(--dark); margin: 6px 0 2px; }
+.detail-practice { font-size: 12px; color: var(--mid); }
 .detail-meta { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
 .detail-meta-row { display: flex; gap: 8px; align-items: center; font-size: 12px; }
-.dml { color: var(–mid); min-width: 58px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
-.dmv { color: var(–dark); }
-.dmv a { color: var(–orange); text-decoration: none; }
+.dml { color: var(--mid); min-width: 58px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
+.dmv { color: var(--dark); }
+.dmv a { color: var(--orange); text-decoration: none; }
 
-.touch-progress { padding: 14px 20px; border-bottom: 1px solid var(–border); }
-.tp-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(–mid); margin-bottom: 12px; }
+.touch-progress { padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.tp-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--mid); margin-bottom: 12px; }
 .tp-steps { display: flex; align-items: flex-start; margin-bottom: 12px; }
 .tp-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; }
-.tp-step::after { content: ‘’; position: absolute; left: 50%; top: 14px; width: 100%; height: 2px; background: var(–border); z-index: 0; }
+.tp-step::after { content: ''; position: absolute; left: 50%; top: 14px; width: 100%; height: 2px; background: var(--border); z-index: 0; }
 .tp-step:last-child::after { display: none; }
-.tp-circle { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(–border); background: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(–mid); position: relative; z-index: 1; }
-.tp-step.done .tp-circle { background: var(–teal); border-color: var(–teal); color: white; }
-.tp-step.current .tp-circle { background: var(–orange); border-color: var(–orange); color: white; }
-.tp-step-label { font-size: 9px; color: var(–mid); text-align: center; line-height: 1.3; max-width: 70px; }
-.tp-step.current .tp-step-label { color: var(–orange); font-weight: 600; }
-.tp-step.done .tp-step-label { color: var(–teal); }
+.tp-circle { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); background: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--mid); position: relative; z-index: 1; }
+.tp-step.done .tp-circle { background: var(--teal); border-color: var(--teal); color: white; }
+.tp-step.current .tp-circle { background: var(--orange); border-color: var(--orange); color: white; }
+.tp-step-label { font-size: 9px; color: var(--mid); text-align: center; line-height: 1.3; max-width: 70px; }
+.tp-step.current .tp-step-label { color: var(--orange); font-weight: 600; }
+.tp-step.done .tp-step-label { color: var(--teal); }
 .advance-row { display: flex; gap: 8px; margin-top: 4px; }
-.advance-full-btn { flex: 1; padding: 8px; background: var(–orange); color: white; border: none; border-radius: 7px; font-family: ‘DM Sans’, sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; }
-.advance-full-btn:disabled { background: var(–border); color: var(–mid); cursor: default; }
-.complete-btn { padding: 8px 12px; background: white; border: 1px solid var(–border); border-radius: 7px; font-family: ‘DM Sans’, sans-serif; font-size: 12px; color: var(–mid); cursor: pointer; }
+.advance-full-btn { flex: 1; padding: 8px; background: var(--orange); color: white; border: none; border-radius: 7px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; }
+.advance-full-btn:disabled { background: var(--border); color: var(--mid); cursor: default; }
+.complete-btn { padding: 8px 12px; background: white; border: 1px solid var(--border); border-radius: 7px; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--mid); cursor: pointer; }
 
-.detail-section { padding: 14px 20px; border-bottom: 1px solid var(–border); }
-.section-hdr { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(–mid); margin-bottom: 10px; }
-.notes-area { width: 100%; min-height: 60px; padding: 9px 11px; border: 1px solid var(–border); border-radius: 7px; font-family: ‘DM Sans’, sans-serif; font-size: 12px; color: var(–dark); resize: vertical; outline: none; line-height: 1.5; }
-.notes-area:focus { border-color: var(–orange); }
-.save-btn { margin-top: 6px; padding: 5px 14px; background: var(–dark); color: white; border: none; border-radius: 6px; font-family: ‘DM Sans’, sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; }
-.save-btn:hover { background: var(–orange); }
+.detail-section { padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.section-hdr { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--mid); margin-bottom: 10px; }
+.notes-area { width: 100%; min-height: 60px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 7px; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--dark); resize: vertical; outline: none; line-height: 1.5; }
+.notes-area:focus { border-color: var(--orange); }
+.save-btn { margin-top: 6px; padding: 5px 14px; background: var(--dark); color: white; border: none; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; }
+.save-btn:hover { background: var(--orange); }
 .email-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; }
-.copy-email-btn { padding: 5px 12px; background: var(–dark); color: white; border: none; border-radius: 6px; font-family: ‘DM Sans’, sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; }
-.copy-email-btn:hover { background: var(–orange); }
-.copy-email-btn.copied { background: var(–green); }
-.email-subject { font-size: 11px; font-weight: 600; color: var(–orange); margin-bottom: 8px; padding: 7px 10px; background: var(–light-sand); border-radius: 5px; border-left: 3px solid var(–orange); }
-.email-subject span { font-weight: 400; color: var(–mid); font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 2px; }
-.email-body-preview { font-size: 11px; color: var(–dark); line-height: 1.7; white-space: pre-wrap; background: var(–light-sand); border: 1px solid var(–border); border-radius: 7px; padding: 11px 13px; max-height: 280px; overflow-y: auto; }
+.copy-email-btn { padding: 5px 12px; background: var(--dark); color: white; border: none; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; }
+.copy-email-btn:hover { background: var(--orange); }
+.copy-email-btn.copied { background: var(--green); }
+.email-subject { font-size: 11px; font-weight: 600; color: var(--orange); margin-bottom: 8px; padding: 7px 10px; background: var(--light-sand); border-radius: 5px; border-left: 3px solid var(--orange); }
+.email-subject span { font-weight: 400; color: var(--mid); font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 2px; }
+.email-body-preview { font-size: 11px; color: var(--dark); line-height: 1.7; white-space: pre-wrap; background: var(--light-sand); border: 1px solid var(--border); border-radius: 7px; padding: 11px 13px; max-height: 280px; overflow-y: auto; }
 .epl { background: rgba(147,210,195,0.35); border-radius: 3px; padding: 0 2px; color: #1A5C50; font-weight: 500; }
 
 .loading-overlay { position: fixed; inset: 0; background: rgba(26,20,16,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; gap: 16px; }
 .loading-overlay.hidden { display: none; }
-.spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(–orange); border-radius: 50%; animation: spin 0.8s linear infinite; }
+.spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--orange); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .loading-text { color: white; font-size: 14px; opacity: 0.7; }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(26,20,16,0.75); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(4px); }
 .modal-overlay.hidden { display: none; pointer-events: none; }
 .modal { background: white; border-radius: 14px; padding: 26px 28px; width: 560px; max-width: 96vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative; z-index: 101; pointer-events: auto; }
-.modal h3 { font-family: ‘Cormorant Garamond’, serif; font-size: 22px; font-weight: 600; color: var(–dark); margin-bottom: 18px; }
-.modal-section-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; color: var(–orange); margin: 16px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(–border); }
+.modal h3 { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; color: var(--dark); margin-bottom: 18px; }
+.modal-section-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; color: var(--orange); margin: 16px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .form-field { display: flex; flex-direction: column; gap: 4px; }
 .form-field.full { grid-column: 1 / -1; }
-.form-field label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(–mid); }
-.form-field input, .form-field select, .form-field textarea { padding: 7px 10px; border: 1px solid var(–border); border-radius: 7px; font-family: ‘DM Sans’, sans-serif; font-size: 13px; color: var(–dark); outline: none; background: white; -webkit-user-select: text; user-select: text; pointer-events: auto; }
-.form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: var(–orange); box-shadow: 0 0 0 2px rgba(240,78,35,0.15); }
+.form-field label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mid); }
+.form-field input, .form-field select, .form-field textarea { padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--dark); outline: none; background: white; -webkit-user-select: text; user-select: text; pointer-events: auto; }
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: var(--orange); box-shadow: 0 0 0 2px rgba(240,78,35,0.15); }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
-.modal-cancel { padding: 9px 20px; background: white; color: var(–mid); border: 1px solid var(–border); border-radius: 8px; font-family: ‘DM Sans’, sans-serif; font-size: 13px; cursor: pointer; }
-.modal-save { padding: 9px 24px; background: var(–orange); color: white; border: none; border-radius: 8px; font-family: ‘DM Sans’, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
-.empty-state { text-align: center; padding: 60px 20px; color: var(–mid); }
+.modal-cancel { padding: 9px 20px; background: white; color: var(--mid); border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; }
+.modal-save { padding: 9px 24px; background: var(--orange); color: white; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--mid); }
 .empty-state p { font-size: 14px; margin-top: 8px; }
-.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(–dark); color: white; padding: 10px 20px; border-radius: 8px; font-size: 13px; z-index: 300; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--dark); color: white; padding: 10px 20px; border-radius: 8px; font-size: 13px; z-index: 300; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
 .toast.show { opacity: 1; }
 
 /* MAP MODAL */
 .map-modal { background: white; border-radius: 14px; width: 92vw; max-width: 1100px; height: 85vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative; z-index: 101; }
-.map-header { padding: 14px 20px; border-bottom: 1px solid var(–border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.map-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .map-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
-.map-sidebar { width: 260px; flex-shrink: 0; border-right: 1px solid var(–border); overflow-y: auto; background: white; display: flex; flex-direction: column; }
-.map-sidebar-header { padding: 10px 14px; border-bottom: 1px solid var(–border); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(–mid); flex-shrink: 0; }
-.map-contact-item { padding: 10px 14px; border-bottom: 1px solid var(–border); cursor: pointer; transition: background 0.1s; }
-.map-contact-item:hover { background: var(–light-sand); }
-.map-contact-name { font-weight: 600; font-size: 12px; color: var(–dark); }
-.map-contact-sub { font-size: 11px; color: var(–mid); margin-top: 1px; }
+.map-sidebar { width: 260px; flex-shrink: 0; border-right: 1px solid var(--border); overflow-y: auto; background: white; display: flex; flex-direction: column; }
+.map-sidebar-header { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--mid); flex-shrink: 0; }
+.map-contact-item { padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
+.map-contact-item:hover { background: var(--light-sand); }
+.map-contact-name { font-weight: 600; font-size: 12px; color: var(--dark); }
+.map-contact-sub { font-size: 11px; color: var(--mid); margin-top: 1px; }
 .map-contact-tags { display: flex; gap: 6px; margin-top: 3px; align-items: center; flex-wrap: wrap; }
 </style>
-
 </head>
 <body>
 
@@ -250,7 +248,6 @@
 </div>
 
 <!-- ADD/EDIT MODAL -->
-
 <div class="modal-overlay hidden" id="modal-overlay">
   <div class="modal">
     <h3 id="modal-title">Add Contact</h3>
@@ -288,7 +285,6 @@
 </div>
 
 <!-- IMPORT MODAL -->
-
 <div class="modal-overlay hidden" id="import-modal-overlay">
   <div class="modal">
     <h3>Import from Outscraper</h3>
@@ -315,7 +311,6 @@
 </div>
 
 <!-- MAP MODAL -->
-
 <div class="modal-overlay hidden" id="map-modal-overlay">
   <div class="map-modal">
     <div class="map-header">
@@ -931,248 +926,251 @@ function renderDetail() {
     <div class="detail-section">
       <div class="section-hdr">Notes</div>
       <textarea class="notes-area" id="notes-area" placeholder="Personal details, shared connections...">${c.notes||''}</textarea>
-
-```
-  <button class="save-btn" onclick="saveNotes('${c.id}')">Save Notes</button>
-</div>
-<div class="detail-section">
-  <div class="email-header-row">
-    <div class="section-hdr" style="margin-bottom:0">Touch ${Math.min(c.touch,3)} — Email Template</div>
-    <button class="copy-email-btn" id="copy-email-btn" onclick="copyEmail('${c.id}')">Copy</button>
-  </div>
-  <div style="height:10px"></div>
-  <div class="email-subject"><span>Subject</span>${tmpl.subject}</div>
-  <div class="email-body-preview">${hlPH(body)}</div>
-</div>`;
-```
-
+      <button class="save-btn" onclick="saveNotes('${c.id}')">Save Notes</button>
+    </div>
+    <div class="detail-section">
+      <div class="email-header-row">
+        <div class="section-hdr" style="margin-bottom:0">Touch ${Math.min(c.touch,3)} — Email Template</div>
+        <button class="copy-email-btn" id="copy-email-btn" onclick="copyEmail('${c.id}')">Copy</button>
+      </div>
+      <div style="height:10px"></div>
+      <div class="email-subject"><span>Subject</span>${tmpl.subject}</div>
+      <div class="email-body-preview">${hlPH(body)}</div>
+    </div>`;
 }
 
 // ── ACTIONS ───────────────────────────────────────────────────────────
 async function setTouch(id, step) {
-const c=contacts.find(x=>x.id===id); if(!c) return;
-if (step===‘complete’) { c.touch=4; c.completed=true; c.nextActionDate=’’; }
-else { const t=parseInt(step); c.touch=t; c.completed=false; c.nextActionDate=addDays(todayStr(),TOUCH_DAYS_DELTA[t-1]||0); }
-c.lastContactDate=todayStr();
-dirtyContacts[makeContactKey(c)]={touch:c.touch,completed:c.completed,ts:Date.now()};
-renderTable(); updateStats(); if(selectedId===id) renderDetail();
-await updateContactInSheet(c);
+  const c=contacts.find(x=>x.id===id); if(!c) return;
+  if (step==='complete') { c.touch=4; c.completed=true; c.nextActionDate=''; }
+  else { const t=parseInt(step); c.touch=t; c.completed=false; c.nextActionDate=addDays(todayStr(),TOUCH_DAYS_DELTA[t-1]||0); }
+  c.lastContactDate=todayStr();
+  dirtyContacts[makeContactKey(c)]={touch:c.touch,completed:c.completed,ts:Date.now()};
+  renderTable(); updateStats(); if(selectedId===id) renderDetail();
+  await updateContactInSheet(c);
 }
 
 async function advanceTouch(id) {
-const c=contacts.find(x=>x.id===id); if(!c||c.touch>3) return;
-c.lastContactDate=todayStr(); c.touch+=1;
-if(c.touch>3){c.completed=true;c.nextActionDate=’’;}
-else{c.nextActionDate=addDays(todayStr(),TOUCH_DAYS_DELTA[c.touch-1]);}
-dirtyContacts[makeContactKey(c)]={touch:c.touch,completed:c.completed,ts:Date.now()};
-renderTable(); updateStats(); if(selectedId===id) renderDetail();
-await updateContactInSheet(c);
+  const c=contacts.find(x=>x.id===id); if(!c||c.touch>3) return;
+  c.lastContactDate=todayStr(); c.touch+=1;
+  if(c.touch>3){c.completed=true;c.nextActionDate='';}
+  else{c.nextActionDate=addDays(todayStr(),TOUCH_DAYS_DELTA[c.touch-1]);}
+  dirtyContacts[makeContactKey(c)]={touch:c.touch,completed:c.completed,ts:Date.now()};
+  renderTable(); updateStats(); if(selectedId===id) renderDetail();
+  await updateContactInSheet(c);
 }
 
 async function markComplete(id) {
-const c=contacts.find(x=>x.id===id); if(!c) return;
-c.completed=true; c.touch=4; c.nextActionDate=’’;
-renderTable(); updateStats(); if(selectedId===id) renderDetail();
-await updateContactInSheet(c);
+  const c=contacts.find(x=>x.id===id); if(!c) return;
+  c.completed=true; c.touch=4; c.nextActionDate='';
+  renderTable(); updateStats(); if(selectedId===id) renderDetail();
+  await updateContactInSheet(c);
 }
 
 async function saveNotes(id) {
-const c=contacts.find(x=>x.id===id); if(!c) return;
-c.notes=document.getElementById(‘notes-area’).value;
-const btn=document.querySelector(’.save-btn’);
-if(btn) btn.textContent=‘Saving…’;
-await updateContactInSheet(c);
-if(btn){btn.textContent=‘Saved!’; setTimeout(()=>btn.textContent=‘Save Notes’,1500);}
+  const c=contacts.find(x=>x.id===id); if(!c) return;
+  c.notes=document.getElementById('notes-area').value;
+  const btn=document.querySelector('.save-btn');
+  if(btn) btn.textContent='Saving...';
+  await updateContactInSheet(c);
+  if(btn){btn.textContent='Saved!'; setTimeout(()=>btn.textContent='Save Notes',1500);}
 }
 
 function copyEmail(id) {
-const c=contacts.find(x=>x.id===id); if(!c) return;
-const tmpl=sequences[c.type][Math.min(c.touch,3)-1];
-const text=`Subject: ${tmpl.subject}\n\n${personalize(tmpl.body,c)}`;
-navigator.clipboard.writeText(text).then(()=>{
-const btn=document.getElementById(‘copy-email-btn’);
-if(btn){btn.textContent=‘Copied!’;btn.classList.add(‘copied’);setTimeout(()=>{btn.textContent=‘Copy’;btn.classList.remove(‘copied’);},2000);}
-});
+  const c=contacts.find(x=>x.id===id); if(!c) return;
+  const tmpl=sequences[c.type][Math.min(c.touch,3)-1];
+  const text=`Subject: ${tmpl.subject}\n\n${personalize(tmpl.body,c)}`;
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn=document.getElementById('copy-email-btn');
+    if(btn){btn.textContent='Copied!';btn.classList.add('copied');setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied');},2000);}
+  });
 }
 
 async function deleteContact(id) {
-if(!confirm(‘Remove this contact from the CRM and Google Sheet?’)) return;
-const c=contacts.find(x=>x.id===id); if(!c) return;
-contacts=contacts.filter(x=>x.id!==id);
-if(selectedId===id){selectedId=null;renderDetail();}
-renderTable(); updateStats();
-await deleteContactFromSheet(c);
+  if(!confirm('Remove this contact from the CRM and Google Sheet?')) return;
+  const c=contacts.find(x=>x.id===id); if(!c) return;
+  contacts=contacts.filter(x=>x.id!==id);
+  if(selectedId===id){selectedId=null;renderDetail();}
+  renderTable(); updateStats();
+  await deleteContactFromSheet(c);
 }
 
 // ── MODALS ────────────────────────────────────────────────────────────
 function openAddModal() {
-editingId=null;
-document.getElementById(‘modal-title’).textContent=‘Add Contact’;
-[‘firstname’,‘lastname’,‘practice’,‘phone’,‘email’,‘website’,‘address’,‘city’,‘zip’,‘notes’].forEach(f=>document.getElementById(‘f-’+f).value=’’);
-document.getElementById(‘f-type’).value=activeTab;
-document.getElementById(‘f-priority’).value=‘High’;
-document.getElementById(‘f-source’).value=activeTab===‘chiro’?‘Google Maps’:‘Apollo.io’;
-document.getElementById(‘f-nextdate’).value=todayStr();
-document.getElementById(‘modal-overlay’).classList.remove(‘hidden’);
+  editingId=null;
+  document.getElementById('modal-title').textContent='Add Contact';
+  ['firstname','lastname','practice','phone','email','website','address','city','zip','notes'].forEach(f=>document.getElementById('f-'+f).value='');
+  document.getElementById('f-type').value=activeTab;
+  document.getElementById('f-priority').value='High';
+  document.getElementById('f-source').value=activeTab==='chiro'?'Google Maps':'Apollo.io';
+  document.getElementById('f-nextdate').value=todayStr();
+  document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
 function openEditModal(id) {
-const c=contacts.find(x=>x.id===id); if(!c) return;
-editingId=id;
-document.getElementById(‘modal-title’).textContent=‘Edit Contact’;
-document.getElementById(‘f-firstname’).value=c.firstname||’’;
-document.getElementById(‘f-lastname’).value=c.lastname||’’;
-document.getElementById(‘f-practice’).value=c.practice||’’;
-document.getElementById(‘f-phone’).value=c.phone||’’;
-document.getElementById(‘f-email’).value=c.email||’’;
-document.getElementById(‘f-website’).value=c.website||’’;
-document.getElementById(‘f-address’).value=c.address||’’;
-document.getElementById(‘f-city’).value=c.city||’’;
-document.getElementById(‘f-zip’).value=c.zip||’’;
-document.getElementById(‘f-notes’).value=c.notes||’’;
-document.getElementById(‘f-type’).value=c.type||activeTab;
-document.getElementById(‘f-priority’).value=c.priority||‘High’;
-document.getElementById(‘f-source’).value=c.source||’’;
-document.getElementById(‘f-nextdate’).value=c.nextActionDate||todayStr();
-document.getElementById(‘modal-overlay’).classList.remove(‘hidden’);
-setTimeout(()=>{ const f=document.getElementById(‘f-practice’); if(f)f.focus(); },100);
+  const c=contacts.find(x=>x.id===id); if(!c) return;
+  editingId=id;
+  document.getElementById('modal-title').textContent='Edit Contact';
+  document.getElementById('f-firstname').value=c.firstname||'';
+  document.getElementById('f-lastname').value=c.lastname||'';
+  document.getElementById('f-practice').value=c.practice||'';
+  document.getElementById('f-phone').value=c.phone||'';
+  document.getElementById('f-email').value=c.email||'';
+  document.getElementById('f-website').value=c.website||'';
+  document.getElementById('f-address').value=c.address||'';
+  document.getElementById('f-city').value=c.city||'';
+  document.getElementById('f-zip').value=c.zip||'';
+  document.getElementById('f-notes').value=c.notes||'';
+  document.getElementById('f-type').value=c.type||activeTab;
+  document.getElementById('f-priority').value=c.priority||'High';
+  document.getElementById('f-source').value=c.source||'';
+  document.getElementById('f-nextdate').value=c.nextActionDate||todayStr();
+  document.getElementById('modal-overlay').classList.remove('hidden');
+  setTimeout(()=>{ const f=document.getElementById('f-practice'); if(f)f.focus(); },100);
 }
 
-function closeModal() { document.getElementById(‘modal-overlay’).classList.add(‘hidden’); editingId=null; }
+function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); editingId=null; }
 
 async function saveContact() {
-const firstname=document.getElementById(‘f-firstname’).value.trim();
-const lastname=document.getElementById(‘f-lastname’).value.trim();
-const practice=document.getElementById(‘f-practice’).value.trim();
-if(!firstname&&!lastname&&!practice){alert(‘Please enter at least a practice name or contact name.’);return;}
-const fields={firstname,lastname,practice,
-type:document.getElementById(‘f-type’).value,
-priority:document.getElementById(‘f-priority’).value,
-phone:document.getElementById(‘f-phone’).value.trim(),
-email:document.getElementById(‘f-email’).value.trim(),
-website:document.getElementById(‘f-website’).value.trim(),
-address:document.getElementById(‘f-address’).value.trim(),
-city:document.getElementById(‘f-city’).value.trim(),
-zip:document.getElementById(‘f-zip’).value.trim(),
-source:document.getElementById(‘f-source’).value,
-nextActionDate:document.getElementById(‘f-nextdate’).value||todayStr(),
-notes:document.getElementById(‘f-notes’).value.trim()
-};
-closeModal();
-if (editingId) {
-const c=contacts.find(x=>x.id===editingId);
-if(c){Object.assign(c,fields);renderTable();if(selectedId===editingId)renderDetail();await updateContactInSheet(c);}
-} else {
-const c={id:genId(),touch:1,completed:false,lastContactDate:’’,createdAt:todayStr(),…fields};
-contacts.push(c); renderTable(); updateStats();
-await addContactToSheet(c);
-}
+  const firstname=document.getElementById('f-firstname').value.trim();
+  const lastname=document.getElementById('f-lastname').value.trim();
+  const practice=document.getElementById('f-practice').value.trim();
+  if(!firstname&&!lastname&&!practice){alert('Please enter at least a practice name or contact name.');return;}
+  const fields={firstname,lastname,practice,
+    type:document.getElementById('f-type').value,
+    priority:document.getElementById('f-priority').value,
+    phone:document.getElementById('f-phone').value.trim(),
+    email:document.getElementById('f-email').value.trim(),
+    website:document.getElementById('f-website').value.trim(),
+    address:document.getElementById('f-address').value.trim(),
+    city:document.getElementById('f-city').value.trim(),
+    zip:document.getElementById('f-zip').value.trim(),
+    source:document.getElementById('f-source').value,
+    nextActionDate:document.getElementById('f-nextdate').value||todayStr(),
+    notes:document.getElementById('f-notes').value.trim()
+  };
+  closeModal();
+  if (editingId) {
+    const c=contacts.find(x=>x.id===editingId);
+    if(c){Object.assign(c,fields);renderTable();if(selectedId===editingId)renderDetail();await updateContactInSheet(c);}
+  } else {
+    const c={id:genId(),touch:1,completed:false,lastContactDate:'',createdAt:todayStr(),...fields};
+    contacts.push(c); renderTable(); updateStats();
+    await addContactToSheet(c);
+  }
 }
 
-document.getElementById(‘modal-overlay’).addEventListener(‘click’,e=>{if(e.target===e.currentTarget)closeModal();});
-document.getElementById(‘import-modal-overlay’).addEventListener(‘click’,e=>{if(e.target===e.currentTarget)closeImportModal();});
-document.getElementById(‘map-modal-overlay’).addEventListener(‘click’,e=>{if(e.target===e.currentTarget)closeMapView();});
+document.getElementById('modal-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+document.getElementById('import-modal-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeImportModal();});
+document.getElementById('map-modal-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeMapView();});
 
 // ── IMPORT MODAL ──────────────────────────────────────────────────────
 function openImportModal() {
-document.getElementById(‘imp-tabname’).value=’’;
-document.getElementById(‘imp-type’).value=activeTab;
-document.getElementById(‘imp-priority’).value=‘Medium’;
-[‘email’,‘phone’,‘name’,‘site’].forEach(f=>document.getElementById(‘imp-col-’+f).value=’’);
-document.getElementById(‘import-status’).textContent=’’;
-document.getElementById(‘import-modal-overlay’).classList.remove(‘hidden’);
+  document.getElementById('imp-tabname').value='';
+  document.getElementById('imp-type').value=activeTab;
+  document.getElementById('imp-priority').value='Medium';
+  ['email','phone','name','site'].forEach(f=>document.getElementById('imp-col-'+f).value='');
+  document.getElementById('import-status').textContent='';
+  document.getElementById('import-modal-overlay').classList.remove('hidden');
 }
-function closeImportModal() { document.getElementById(‘import-modal-overlay’).classList.add(‘hidden’); }
+function closeImportModal() { document.getElementById('import-modal-overlay').classList.add('hidden'); }
 
 async function runImport() {
-const tabName=document.getElementById(‘imp-tabname’).value.trim();
-const type=document.getElementById(‘imp-type’).value;
-const priority=document.getElementById(‘imp-priority’).value;
-const status=document.getElementById(‘import-status’);
-if(!tabName){status.textContent=‘⚠ Please enter the tab name.’;status.style.color=‘var(–red)’;return;}
-const overrides={email:document.getElementById(‘imp-col-email’).value.trim(),phone:document.getElementById(‘imp-col-phone’).value.trim(),practice:document.getElementById(‘imp-col-name’).value.trim(),website:document.getElementById(‘imp-col-site’).value.trim()};
-status.textContent=‘Reading sheet…’;status.style.color=‘var(–mid)’;
-try {
-const res=await fetch(`${BASE_URL}/values/${encodeURIComponent(tabName+'!A1:AZ2000')}?key=${API_KEY}`).then(r=>r.json());
-if(res.error){status.textContent=`⚠ ${res.error.message}`;status.style.color=‘var(–red)’;return;}
-const rows=res.values||[];
-if(rows.length<2){status.textContent=‘⚠ Sheet appears empty.’;status.style.color=‘var(–red)’;return;}
-const headers=rows[0];
-const fieldIdx=matchOutscraperHeader(headers,overrides);
-status.textContent=`Detected: ${Object.entries(fieldIdx).map(([k,v])=>`${k}→${headers[v]}`).join(', ')}`;
-const parsed=rows.slice(1).filter(r=>r.some(c=>c)).map(r=>parseOutscraperRow(r,fieldIdx,type,priority)).filter(c=>c.practice||c.firstname||c.lastname);
-const seen=new Set();
-const newContacts=parsed.filter(c=>{
-const key=`${c.phone.replace(/\D/g,'')}||${c.practice.toLowerCase().trim()}`;
-if(key===’||’) return true;
-if(seen.has(key)) return false;
-seen.add(key); return true;
-});
-if(!newContacts.length){status.textContent=‘⚠ No valid contacts found.’;status.style.color=‘var(–red)’;return;}
-status.textContent=`Importing ${newContacts.length} contacts…`;status.style.color=‘var(–mid)’;
-const crmSheet=type===‘chiro’?CHIRO_SHEET:PI_SHEET;
-await scriptPost({action:‘batchAppend’,sheet:crmSheet,values:newContacts.map(c=>contactToRow(c))});
-contacts.push(…newContacts); renderTable(); updateStats(); closeImportModal();
-showToast(`✓ Imported ${newContacts.length} contacts from "${tabName}"`);
-} catch(e) { status.textContent=‘⚠ Import failed.’;status.style.color=‘var(–red)’;console.error(e); }
+  const tabName=document.getElementById('imp-tabname').value.trim();
+  const type=document.getElementById('imp-type').value;
+  const priority=document.getElementById('imp-priority').value;
+  const status=document.getElementById('import-status');
+  if(!tabName){status.textContent='⚠ Please enter the tab name.';status.style.color='var(--red)';return;}
+  const overrides={email:document.getElementById('imp-col-email').value.trim(),phone:document.getElementById('imp-col-phone').value.trim(),practice:document.getElementById('imp-col-name').value.trim(),website:document.getElementById('imp-col-site').value.trim()};
+  status.textContent='Reading sheet…';status.style.color='var(--mid)';
+  try {
+    const res=await fetch(`${BASE_URL}/values/${encodeURIComponent(tabName+'!A1:AZ2000')}?key=${API_KEY}`).then(r=>r.json());
+    if(res.error){status.textContent=`⚠ ${res.error.message}`;status.style.color='var(--red)';return;}
+    const rows=res.values||[];
+    if(rows.length<2){status.textContent='⚠ Sheet appears empty.';status.style.color='var(--red)';return;}
+    const headers=rows[0];
+    const fieldIdx=matchOutscraperHeader(headers,overrides);
+    status.textContent=`Detected: ${Object.entries(fieldIdx).map(([k,v])=>`${k}→${headers[v]}`).join(', ')}`;
+    const parsed=rows.slice(1).filter(r=>r.some(c=>c)).map(r=>parseOutscraperRow(r,fieldIdx,type,priority)).filter(c=>c.practice||c.firstname||c.lastname);
+    const seen=new Set();
+    const newContacts=parsed.filter(c=>{
+      const key=`${c.phone.replace(/\D/g,'')}||${c.practice.toLowerCase().trim()}`;
+      if(key==='||') return true;
+      if(seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+    if(!newContacts.length){status.textContent='⚠ No valid contacts found.';status.style.color='var(--red)';return;}
+    status.textContent=`Importing ${newContacts.length} contacts…`;status.style.color='var(--mid)';
+    const crmSheet=type==='chiro'?CHIRO_SHEET:PI_SHEET;
+    await scriptPost({action:'batchAppend',sheet:crmSheet,values:newContacts.map(c=>contactToRow(c))});
+    contacts.push(...newContacts); renderTable(); updateStats(); closeImportModal();
+    showToast(`✓ Imported ${newContacts.length} contacts from "${tabName}"`);
+  } catch(e) { status.textContent='⚠ Import failed.';status.style.color='var(--red)';console.error(e); }
 }
 
 // ── MAP VIEW ──────────────────────────────────────────────────────────
-let mapFilter = ‘all’;
+let mapFilter = 'all';
 
 function openMapView() {
-document.getElementById(‘map-modal-overlay’).classList.remove(‘hidden’);
-document.getElementById(‘map-title’).textContent =
-(activeTab===‘chiro’?‘Chiropractors’:‘PI Attorneys’) + ’ — Map View’;
-renderMapView();
+  document.getElementById('map-modal-overlay').classList.remove('hidden');
+  document.getElementById('map-title').textContent =
+    (activeTab==='chiro'?'Chiropractors':'PI Attorneys') + ' — Map View';
+  renderMapView();
 }
 
 function closeMapView() {
-document.getElementById(‘map-modal-overlay’).classList.add(‘hidden’);
-document.getElementById(‘map-frame’).src = ‘about:blank’;
+  document.getElementById('map-modal-overlay').classList.add('hidden');
+  document.getElementById('map-frame').src = 'about:blank';
 }
 
 function setMapFilter(f) {
-mapFilter = f;
-[‘all’,‘high’,‘due’,‘notstarted’].forEach(k => {
-document.getElementById(‘mf-’+k).classList.toggle(‘active’, k===f);
-});
-renderMapView();
+  mapFilter = f;
+  ['all','high','due','notstarted'].forEach(k => {
+    document.getElementById('mf-'+k).classList.toggle('active', k===f);
+  });
+  renderMapView();
 }
 
 function getMapContacts() {
-return contacts.filter(c => {
-if (c.type !== activeTab) return false;
-if (mapFilter===‘high’) return c.priority===‘High’;
-if (mapFilter===‘due’) { const s=getStatus(c); return s===‘due’||s===‘overdue’; }
-if (mapFilter===‘notstarted’) return c.touch===1&&!c.completed;
-return true;
-}).filter(c => c.address && c.city);
+  return contacts.filter(c => {
+    if (c.type !== activeTab) return false;
+    if (mapFilter==='high') return c.priority==='High';
+    if (mapFilter==='due') { const s=getStatus(c); return s==='due'||s==='overdue'; }
+    if (mapFilter==='notstarted') return c.touch===1&&!c.completed;
+    return true;
+  }).filter(c => c.address && c.city);
 }
 
 function renderMapView() {
-const list = getMapContacts();
-document.getElementById(‘map-count’).textContent = `${list.length} contacts with addresses`;
+  const list = getMapContacts();
+  document.getElementById('map-count').textContent = `${list.length} contacts with addresses`;
 
-// Sidebar
-document.getElementById(‘map-list’).innerHTML = list.map(c => {
-const pColor = c.priority===‘High’?‘var(–red)’:c.priority===‘Medium’?‘var(–yellow)’:‘var(–mid)’;
-const st = getStatus(c);
-const stColor = st===‘overdue’?‘var(–red)’:st===‘due’?‘var(–yellow)’:‘var(–green)’;
-return `<div class="map-contact-item" onclick="closeMapView();selectContact('${c.id}')"> <div class="map-contact-name">${c.practice||c.firstname+' '+c.lastname}</div> <div class="map-contact-sub">${c.address}, ${c.city}</div> <div class="map-contact-tags"> <span style="font-size:10px;font-weight:700;color:${pColor}">${c.priority}</span> <span style="font-size:10px;color:${stColor}">T${c.touch}</span> ${c.phone?`<a href="tel:${c.phone}" onclick="event.stopPropagation()" style="font-size:10px;color:var(--orange);text-decoration:none">${c.phone}</a>`:''} </div> </div>`;
-}).join(’’);
+  // Sidebar
+  document.getElementById('map-list').innerHTML = list.map(c => {
+    const pColor = c.priority==='High'?'var(--red)':c.priority==='Medium'?'var(--yellow)':'var(--mid)';
+    const st = getStatus(c);
+    const stColor = st==='overdue'?'var(--red)':st==='due'?'var(--yellow)':'var(--green)';
+    return `<div class="map-contact-item" onclick="closeMapView();selectContact('${c.id}')">
+      <div class="map-contact-name">${c.practice||c.firstname+' '+c.lastname}</div>
+      <div class="map-contact-sub">${c.address}, ${c.city}</div>
+      <div class="map-contact-tags">
+        <span style="font-size:10px;font-weight:700;color:${pColor}">${c.priority}</span>
+        <span style="font-size:10px;color:${stColor}">T${c.touch}</span>
+        ${c.phone?`<a href="tel:${c.phone}" onclick="event.stopPropagation()" style="font-size:10px;color:var(--orange);text-decoration:none">${c.phone}</a>`:''}
+      </div>
+    </div>`;
+  }).join('');
 
-// Build Leaflet map in iframe
-const markers = list.map(c => ({
-address: `${c.address}, ${c.city}, KY`.replace(/”/g,”’”),
-label: (c.practice||`${c.firstname} ${c.lastname}`).replace(/`/g,”’”),
-priority: c.priority,
-phone: c.phone||’’,
-touch: c.touch
-}));
+  // Build Leaflet map in iframe
+  const markers = list.map(c => ({
+    address: `${c.address}, ${c.city}, KY`.replace(/"/g,"'"),
+    label: (c.practice||`${c.firstname} ${c.lastname}`).replace(/`/g,"'"),
+    priority: c.priority,
+    phone: c.phone||'',
+    touch: c.touch
+  }));
 
-const mapHtml = `<!DOCTYPE html>
-
+  const mapHtml = `<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1213,19 +1211,18 @@ async function geocode(c){
 <\/script>
 </body></html>`;
 
-document.getElementById(‘map-loading’).style.display=‘flex’;
-const frame = document.getElementById(‘map-frame’);
-frame.srcdoc = mapHtml;
+  document.getElementById('map-loading').style.display='flex';
+  const frame = document.getElementById('map-frame');
+  frame.srcdoc = mapHtml;
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────
 const loadingTimeout = setTimeout(() => {
-document.getElementById(‘loading-overlay’).classList.add(‘hidden’);
-setSyncStatus(‘error’,‘Load timed out — hit ↻ Refresh’);
+  document.getElementById('loading-overlay').classList.add('hidden');
+  setSyncStatus('error','Load timed out — hit ↻ Refresh');
 }, 10000);
 
 loadFromSheets().finally(() => clearTimeout(loadingTimeout));
 </script>
-
 </body>
 </html>
