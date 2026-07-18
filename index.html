@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -318,7 +319,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 const SHEET_ID   = '1-qdfnwAP9siadhB_ePkwNt0Nm7K4AZXuei2ZCWTW2k0';
 const API_KEY    = 'AIzaSyAAqpieBssS21pv8zOesFnpBOR-VYIP4V4';
 const BASE_URL   = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`;
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxA8hZaaIgr9s49xXkLRjuAl7jXu4gmP1FfKxSYBv4elooo69YCoFso5R7HPUMsuo80UQ/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwS_4g2weUEb4eR9wP4NEy995dL6Naza9zw69E78FRQfXiyrb8JaQvN62eSSFVncDitfA/exec';
 
 // Sheet tab names — must match exactly in Google Sheets
 const CHIRO_SHEET = 'Louisville Chiropractors';
@@ -346,20 +347,49 @@ const dirtyContacts = {};
 function sheetName(type) { return type === 'chiro' ? CHIRO_SHEET : type === 'pi' ? PI_SHEET : DPC_SHEET; }
 function activeSheet() { return sheetName(activeTab); }
 
+const SHEET_COL_MAP = {
+  chiro: { practice:'Practice Name', phone:'Phone', email:'Email', website:'Website',
+           address:'Street', city:'City', state:'State', zip:'Zip',
+           priority:'Priority', touchStatus:'Touch Status', nextActionDate:'Next Action Date', notes:'Notes' },
+  pi:    { practice:'Firm Name', phone:'Phone', email:'Email', website:'Website',
+           address:'Street', city:'City', state:'State', zip:'Zip',
+           priority:'Priority', touchStatus:'Touch Status', nextActionDate:'Next Action Date', notes:'Notes' },
+  dpc:   { practice:'Practice Name', phone:'Phone', email:'Email', website:'Website',
+           address:'Address', city:'City', state:'State', zip:'Zip',
+           priority:'Priority', touchStatus:'Touch Status', nextActionDate:'Next Action Date', notes:'Notes' }
+};
+
 function rowToContact(row, type, headerMap) {
   const c = { type };
   if (headerMap) {
-    // Header-aware: look up each column by name
+    const colMap = SHEET_COL_MAP[type] || {};
+    // Try CRM column names first
     COLS.forEach(col => {
       const idx = headerMap[col];
-      c[col] = (idx !== undefined && row[idx] !== undefined) ? String(row[idx]) : '';
+      if (idx !== undefined && row[idx] !== undefined) c[col] = String(row[idx]);
     });
+    // Then try clean sheet column names
+    Object.entries(colMap).forEach(([crmField, sheetCol]) => {
+      const idx = headerMap[sheetCol];
+      if (idx !== undefined && row[idx] !== undefined && !c[crmField]) c[crmField] = String(row[idx]);
+    });
+    // Also map touchStatus → touch number
+    if (!c.touch && c.touchStatus) {
+      const ts = String(c.touchStatus).toLowerCase().trim();
+      if (ts === 'complete' || ts === 'touch 3 sent') { c.touch = 4; c.completed = true; }
+      else if (ts === 'touch 2 sent') c.touch = 3;
+      else if (ts === 'touch 1 sent') c.touch = 2;
+      else c.touch = 1;
+    }
+    // Ensure all fields exist
+    COLS.forEach(col => { if (c[col] === undefined) c[col] = ''; });
+    if (!c.firstname && !c.lastname && c.practice) { c.firstname = c.practice; c.lastname = ''; }
   } else {
-    // Positional fallback
     COLS.forEach((col, i) => { c[col] = row[i] !== undefined ? String(row[i]) : ''; });
   }
   c.touch = parseInt(c.touch) || 1;
-  c.completed = c.completed === 'true';
+  c.completed = c.completed === 'true' || c.completed === true;
+  if (!c.id) c.id = genId();
   return c;
 }
 
@@ -370,9 +400,11 @@ function buildHeaderMap(headerRow) {
 }
 
 function isOurHeaderRow(headerRow) {
-  // Detect if row 1 is our CRM header (contains at least 3 known col names)
-  const known = new Set(COLS);
-  return headerRow.filter(h => known.has(String(h).trim())).length >= 3;
+  const known = new Set([...COLS,
+    'Practice Name','Firm Name','Phone','Email','Website','Street','Address','City','State','Zip',
+    'Google Rating','Review Count','Priority','Touch Status','Next Action Date','Notes','Physician(s)','Model'
+  ]);
+  return headerRow.filter(h => known.has(String(h).trim())).length >= 2;
 }
 
 function contactToRow(c) {
