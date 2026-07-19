@@ -339,12 +339,7 @@ let filterPriority = 'all';
 let searchQuery = '';
 let editingId = null;
 let isSaving = false;
-let isInitialLoad = true;
-const dirtyContacts = {};
 
-// ── SHEET HELPERS ─────────────────────────────────────────────────────
-function sheetName(type) { return type === 'chiro' ? CHIRO_SHEET : type === 'pi' ? PI_SHEET : DPC_SHEET; }
-function activeSheet() { return sheetName(activeTab); }
 
 const SHEET_COL_MAP = {
   chiro: { practice:'Practice Name', phone:'Phone', email:'Email', website:'Website',
@@ -354,25 +349,26 @@ const SHEET_COL_MAP = {
            address:'Street', city:'City', state:'State', zip:'Zip',
            priority:'Priority', touchStatus:'Touch Status', nextActionDate:'Next Action Date', notes:'Notes' },
   dpc:   { practice:'Practice Name', phone:'Phone', email:'Email', website:'Website',
-           address:'Address', city:'City', state:'State', zip:'Zip',
+           address:'Address', city:'City', state:'State',
            priority:'Priority', touchStatus:'Touch Status', nextActionDate:'Next Action Date', notes:'Notes' }
 };
+
+// ── SHEET HELPERS ─────────────────────────────────────────────────────
+function sheetName(type) { return type === 'chiro' ? CHIRO_SHEET : type === 'pi' ? PI_SHEET : DPC_SHEET; }
+function activeSheet() { return sheetName(activeTab); }
 
 function rowToContact(row, type, headerMap) {
   const c = { type };
   if (headerMap) {
     const colMap = SHEET_COL_MAP[type] || {};
-    // Try CRM column names first
     COLS.forEach(col => {
       const idx = headerMap[col];
       if (idx !== undefined && row[idx] !== undefined) c[col] = String(row[idx]);
     });
-    // Then try clean sheet column names
     Object.entries(colMap).forEach(([crmField, sheetCol]) => {
       const idx = headerMap[sheetCol];
       if (idx !== undefined && row[idx] !== undefined && !c[crmField]) c[crmField] = String(row[idx]);
     });
-    // Also map touchStatus → touch number
     if (!c.touch && c.touchStatus) {
       const ts = String(c.touchStatus).toLowerCase().trim();
       if (ts === 'complete' || ts === 'touch 3 sent') { c.touch = 4; c.completed = true; }
@@ -380,7 +376,6 @@ function rowToContact(row, type, headerMap) {
       else if (ts === 'touch 1 sent') c.touch = 2;
       else c.touch = 1;
     }
-    // Ensure all fields exist
     COLS.forEach(col => { if (c[col] === undefined) c[col] = ''; });
     if (!c.firstname && !c.lastname && c.practice) { c.firstname = c.practice; c.lastname = ''; }
   } else {
@@ -400,8 +395,9 @@ function buildHeaderMap(headerRow) {
 
 function isOurHeaderRow(headerRow) {
   const known = new Set([...COLS,
-    'Practice Name','Firm Name','Phone','Email','Website','Street','Address','City','State','Zip',
-    'Google Rating','Review Count','Priority','Touch Status','Next Action Date','Notes','Physician(s)','Model'
+    'Practice Name','Firm Name','Phone','Email','Website','Street','Address',
+    'City','State','Zip','Priority','Touch Status','Next Action Date','Notes',
+    'Google Rating','Review Count','Physician(s)','Model'
   ]);
   return headerRow.filter(h => known.has(String(h).trim())).length >= 2;
 }
@@ -563,7 +559,8 @@ async function loadFromSheets() {
   document.getElementById('loading-overlay').classList.remove('hidden');
   document.getElementById('loading-text').textContent = 'Loading contacts...';
 
-  try {    const [chiroRes, piRes, dpcRes] = await Promise.all([
+  try {
+    const [chiroRes, piRes, dpcRes] = await Promise.all([
       fetch(`${BASE_URL}/values/${encodeURIComponent(CHIRO_SHEET + '!A1:Z2000')}?key=${API_KEY}`).then(r => r.json()),
       fetch(`${BASE_URL}/values/${encodeURIComponent(PI_SHEET + '!A1:Z2000')}?key=${API_KEY}`).then(r => r.json()),
       fetch(`${BASE_URL}/values/${encodeURIComponent(DPC_SHEET + '!A1:Z2000')}?key=${API_KEY}`).then(r => r.json())
@@ -573,26 +570,11 @@ async function loadFromSheets() {
     const piRows    = piRes.values   || [];
     const dpcRows   = dpcRes.values  || [];
 
-    const incoming = [
+    contacts = [
       ...parseCRMSheet(chiroRows, 'chiro'),
-      ...parseCRMSheet(piRows, 'pi'),
-      ...parseCRMSheet(dpcRows, 'dpc')
+      ...parseCRMSheet(piRows,    'pi'),
+      ...parseCRMSheet(dpcRows,   'dpc')
     ];
-
-    if (isInitialLoad) {
-      contacts = incoming;
-    } else {
-      const memMap = {};
-      contacts.forEach(c => { memMap[makeContactKey(c)] = c; });
-      contacts = incoming.map(fresh => {
-        const key = makeContactKey(fresh);
-        const mem = memMap[key];
-        if (!mem) return fresh;
-        if (dirtyContacts[key]) return { ...fresh, id:mem.id, touch:mem.touch, completed:mem.completed,
-          nextActionDate:mem.nextActionDate, lastContactDate:mem.lastContactDate, notes:mem.notes||fresh.notes };
-        return { ...fresh, id: mem.id || fresh.id };
-      });
-    }
 
     setSyncStatus('ok', 'Synced with Google Sheets');
     renderTable();
@@ -776,82 +758,9 @@ Venu Vemuri, DO
 Founder, miiSpine
 (502) 242-6370` }
   ]
-,
-  dpc: [
-    { subject: 'A specialist who refers back — miiSpine, Louisville',
-      body: `Dr. [Last Name],
-
-My name is Venu Vemuri — I'm a minimally invasive spine surgeon and the founder of miiSpine here in Louisville.
-
-As a concierge/DPC physician, your patients expect a different level of access and coordination than they'd get in a traditional system. I built miiSpine with that same philosophy — a practice where the surgeon is actually reachable, where care is coordinated end-to-end, and where your patient doesn't disappear into a system you can't see into.
-
-My commitment to every physician I work with is simple: if your patient doesn't need surgery, I'll tell them that clearly — and send them straight back to you with a detailed note on exactly what I found and what I recommend. You stay in control of the relationship.
-
-When spine or musculoskeletal issues go beyond what primary care alone can address, I offer:
-
-→ Same-week consults for your patients — prioritized
-→ Interventional pain options before surgery is ever considered — injections, nerve blocks, regenerative treatments
-→ Surgery only when clearly indicated — outpatient, minimally invasive, same-day discharge
-→ A written clinical opinion after every visit, sent directly to you
-
-I think you'll find I'm a different kind of specialist to work with.
-
-My team will be in your neighborhood this week and would love to stop by and introduce themselves. No pressure — just want to get on your radar.
-
-Would that be okay?
-
-Warm regards,
-
-Venu Vemuri, DO
-Founder, miiSpine
-(502) 242-6370 | miispine.com` },
-    { subject: 'Great to meet your team — from miiSpine',
-      body: `Dr. [Last Name],
-
-[Staff member name] mentioned what a warm welcome your team gave them — really appreciated that.
-
-I wanted to follow up personally. The concierge and DPC model exists because patients deserve better access and more coordinated care. That's exactly the philosophy I've built miiSpine around on the specialist side.
-
-Here's how I think about working with concierge and DPC physicians:
-
-→ You stay the quarterback — I'm a specialist resource, not a place your patients get lost
-→ Every consult produces a written clinical opinion sent directly back to you
-→ Non-surgical patients formally returned to your care with a full summary
-→ Same-week access reserved for your referrals
-→ Interventional pain options as a middle step — I don't jump to surgery
-
-Your patients chose you because they want a physician who knows them. I want to be the spine specialist who fits that model — not a revolving door they have to navigate alone.
-
-I'd genuinely enjoy taking you to lunch. Would any time in the next two weeks work?
-
-Venu Vemuri, DO
-Founder, miiSpine
-(502) 242-6370` },
-    { subject: 'Lunch on me — picking a time',
-      body: `Dr. [Last Name],
-
-I'll keep this short — I know how busy practice gets even in a concierge model.
-
-I'd like to take you to lunch, just the two of us. No agenda other than getting to know each other and being honest about whether there's a way to work together that genuinely serves your patients.
-
-The concierge physicians I work with tell me the same thing: their patients trust them to vet their specialists the same way they vetted their PCP. I want to earn that.
-
-I want to be the surgeon on your team — not a place your patients disappear to.
-
-I have openings on [Day/Date] and [Day/Date] — does either work?
-
-Venu Vemuri, DO
-Founder, miiSpine
-(502) 242-6370` }
-  ]
 };
 
 // ── HELPERS ───────────────────────────────────────────────────────────
-function makeContactKey(c) {
-  const phone = (c.phone||"").replace(/\D/g,"");
-  const name  = (c.practice||`${c.firstname} ${c.lastname}`).toLowerCase().trim();
-  return `${phone}||${name}`;
-}
 function todayStr() { return new Date().toISOString().split('T')[0]; }
 function addDays(str, n) { const d = new Date(str); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]; }
 function fmtDate(str) { if (!str) return '—'; const d = new Date(str + 'T12:00:00'); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
@@ -998,7 +907,7 @@ function renderDetail() {
 
   panel.innerHTML = `
     <div class="detail-header">
-      <span class="type-badge type-${c.type}">${c.type==='chiro'?'Chiropractor':c.type==='pi'?'PI Attorney':'Concierge / DPC'}</span>
+      <span class="type-badge type-${c.type}">${c.type==='chiro'?'Chiropractor':c.type==='pi'?'PI Attorney':'Concierge/DPC'}</span>
       <div class="detail-name">${c.firstname} ${c.lastname}</div>
       <div class="detail-practice">${c.practice||''}</div>
       <div class="detail-meta">
@@ -1213,7 +1122,8 @@ async function runImport() {
       if (key === '||') return true; // no phone and no name — keep it
       if (seen.has(key)) return false;
       seen.add(key);
-      return true;
+
+    return true;
     });
 
     if (!newContacts.length) { status.textContent = '⚠ No valid contacts found. Check the tab name and column headers.'; status.style.color='var(--red)'; return; }
