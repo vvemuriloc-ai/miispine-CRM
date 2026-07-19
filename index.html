@@ -339,6 +339,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
           <button class="filter-btn" id="mf-due" onclick="setMapFilter('due')">Due/Overdue</button>
           <button class="filter-btn" id="mf-notstarted" onclick="setMapFilter('notstarted')">Not Started</button>
         </div>
+        <button onclick="planRoute()" style="padding:6px 14px;background:var(--orange);color:white;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer" id="plan-route-btn">📍 Plan Route (0)</button>
         <button class="modal-cancel" onclick="closeMapView()" style="padding:6px 14px">✕ Close</button>
       </div>
     </div>
@@ -610,19 +611,24 @@ function renderMapView() {
   const stColors = {overdue:'var(--red)',due:'var(--yellow)',ok:'var(--green)',complete:'var(--mid)'};
 
   // Sidebar
+  const routeSet = new Set(window._routeSelected || []);
   document.getElementById('map-list').innerHTML = list.map(c => {
     const name = c.practice || (c.firstname + ' ' + c.lastname).trim();
     const pColor = pColors[c.priority] || 'var(--mid)';
     const stColor = stColors[getStatus(c)] || 'var(--mid)';
     const mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent((c.address||'') + ' ' + (c.city||'') + ' KY');
-    return '<div class="map-contact-item" onclick="closeMapView();selectContact(\'' + c.id + '\')">' +
-      '<div class="map-contact-name">' + name + '</div>' +
-      '<div class="map-contact-sub">' + (c.address||'—') + ', ' + (c.city||'') + '</div>' +
-      '<div class="map-contact-tags">' +
-        '<span style="font-size:10px;font-weight:700;color:' + pColor + '">' + c.priority + '</span>' +
-        '<span style="font-size:10px;color:' + stColor + '">T' + c.touch + '</span>' +
-        (c.phone ? '<a href="tel:' + c.phone + '" onclick="event.stopPropagation()" style="font-size:10px;color:var(--orange);text-decoration:none">' + c.phone + '</a>' : '') +
-        '<a href="' + mapsUrl + '" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;color:var(--mid);text-decoration:none" title="Open in Google Maps">📍</a>' +
+    const checked = routeSet.has(c.id) ? 'checked' : '';
+    return '<div class="map-contact-item" style="display:flex;align-items:flex-start;gap:8px">' +
+      '<input type="checkbox" ' + checked + ' id="chk-' + c.id + '" onchange="toggleRoute(\'' + c.id + '\')" onclick="event.stopPropagation()" style="margin-top:3px;flex-shrink:0;cursor:pointer">' +
+      '<div onclick="closeMapView();selectContact(\'' + c.id + '\')" style="flex:1;min-width:0">' +
+        '<div class="map-contact-name">' + name + '</div>' +
+        '<div class="map-contact-sub">' + (c.address||'—') + ', ' + (c.city||'') + '</div>' +
+        '<div class="map-contact-tags">' +
+          '<span style="font-size:10px;font-weight:700;color:' + pColor + '">' + c.priority + '</span>' +
+          '<span style="font-size:10px;color:' + stColor + '">T' + c.touch + '</span>' +
+          (c.phone ? '<a href="tel:' + c.phone + '" onclick="event.stopPropagation()" style="font-size:10px;color:var(--orange);text-decoration:none">' + c.phone + '</a>' : '') +
+          '<a href="' + mapsUrl + '" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;color:var(--mid);text-decoration:none" title="Open in Google Maps">📍</a>' +
+        '</div>' +
       '</div></div>';
   }).join('');
 
@@ -657,6 +663,46 @@ function renderMapView() {
 }
 
 document.getElementById('map-modal-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) closeMapView(); });
+
+
+// ── ROUTE PLANNING ────────────────────────────────────────────────────
+window._routeSelected = [];
+
+function toggleRoute(id) {
+  const sel = window._routeSelected;
+  const idx = sel.indexOf(id);
+  if (idx === -1) sel.push(id);
+  else sel.splice(idx, 1);
+  const btn = document.getElementById('plan-route-btn');
+  if (btn) btn.textContent = '📍 Plan Route (' + sel.length + ')';
+}
+
+function planRoute() {
+  const sel = window._routeSelected;
+  if (!sel.length) { showToast('Check contacts in the sidebar to add them to your route.'); return; }
+
+  const origin = '6420 Dutchmans Pkwy, Louisville, KY 40205';
+  const stops = sel.map(id => {
+    const c = contacts.find(x => x.id === id);
+    if (!c) return null;
+    return (c.address || '') + ' ' + (c.city || '') + ' KY ' + (c.zip || '');
+  }).filter(Boolean);
+
+  if (!stops.length) { showToast('No valid addresses found for selected contacts.'); return; }
+
+  // Google Maps directions URL — max 10 waypoints
+  const waypoints = stops.slice(0, 9); // first 9 as waypoints
+  const destination = stops[stops.length > 9 ? 9 : stops.length - 1];
+  const waypointStr = waypoints.slice(0, -1).map(s => encodeURIComponent(s)).join('|');
+
+  let url = 'https://www.google.com/maps/dir/?api=1' +
+    '&origin=' + encodeURIComponent(origin) +
+    '&destination=' + encodeURIComponent(destination) +
+    '&travelmode=driving';
+  if (waypointStr) url += '&waypoints=' + waypointStr;
+
+  window.open(url, '_blank');
+}
 
 // ── INIT SHEETS ───────────────────────────────────────────────────────
 async function initSheets() {
@@ -1333,6 +1379,9 @@ function openMapView() {
 
 function closeMapView() {
   document.getElementById('map-modal-overlay').classList.add('hidden');
+  window._routeSelected = [];
+  const btn = document.getElementById('plan-route-btn');
+  if (btn) btn.textContent = '📍 Plan Route (0)';
 }
 
 function setMapFilter(f) {
@@ -1361,19 +1410,24 @@ function renderMapView() {
   const stColors = {overdue:'var(--red)',due:'var(--yellow)',ok:'var(--green)',complete:'var(--mid)'};
 
   // Sidebar
+  const routeSet = new Set(window._routeSelected || []);
   document.getElementById('map-list').innerHTML = list.map(c => {
     const name = c.practice || (c.firstname + ' ' + c.lastname).trim();
     const pColor = pColors[c.priority] || 'var(--mid)';
     const stColor = stColors[getStatus(c)] || 'var(--mid)';
     const mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent((c.address||'') + ' ' + (c.city||'') + ' KY');
-    return '<div class="map-contact-item" onclick="closeMapView();selectContact(\'' + c.id + '\')">' +
-      '<div class="map-contact-name">' + name + '</div>' +
-      '<div class="map-contact-sub">' + (c.address||'—') + ', ' + (c.city||'') + '</div>' +
-      '<div class="map-contact-tags">' +
-        '<span style="font-size:10px;font-weight:700;color:' + pColor + '">' + c.priority + '</span>' +
-        '<span style="font-size:10px;color:' + stColor + '">T' + c.touch + '</span>' +
-        (c.phone ? '<a href="tel:' + c.phone + '" onclick="event.stopPropagation()" style="font-size:10px;color:var(--orange);text-decoration:none">' + c.phone + '</a>' : '') +
-        '<a href="' + mapsUrl + '" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;color:var(--mid);text-decoration:none" title="Open in Google Maps">📍</a>' +
+    const checked = routeSet.has(c.id) ? 'checked' : '';
+    return '<div class="map-contact-item" style="display:flex;align-items:flex-start;gap:8px">' +
+      '<input type="checkbox" ' + checked + ' id="chk-' + c.id + '" onchange="toggleRoute(\'' + c.id + '\')" onclick="event.stopPropagation()" style="margin-top:3px;flex-shrink:0;cursor:pointer">' +
+      '<div onclick="closeMapView();selectContact(\'' + c.id + '\')" style="flex:1;min-width:0">' +
+        '<div class="map-contact-name">' + name + '</div>' +
+        '<div class="map-contact-sub">' + (c.address||'—') + ', ' + (c.city||'') + '</div>' +
+        '<div class="map-contact-tags">' +
+          '<span style="font-size:10px;font-weight:700;color:' + pColor + '">' + c.priority + '</span>' +
+          '<span style="font-size:10px;color:' + stColor + '">T' + c.touch + '</span>' +
+          (c.phone ? '<a href="tel:' + c.phone + '" onclick="event.stopPropagation()" style="font-size:10px;color:var(--orange);text-decoration:none">' + c.phone + '</a>' : '') +
+          '<a href="' + mapsUrl + '" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;color:var(--mid);text-decoration:none" title="Open in Google Maps">📍</a>' +
+        '</div>' +
       '</div></div>';
   }).join('');
 
@@ -1408,6 +1462,46 @@ function renderMapView() {
 }
 
 document.getElementById('map-modal-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) closeMapView(); });
+
+
+// ── ROUTE PLANNING ────────────────────────────────────────────────────
+window._routeSelected = [];
+
+function toggleRoute(id) {
+  const sel = window._routeSelected;
+  const idx = sel.indexOf(id);
+  if (idx === -1) sel.push(id);
+  else sel.splice(idx, 1);
+  const btn = document.getElementById('plan-route-btn');
+  if (btn) btn.textContent = '📍 Plan Route (' + sel.length + ')';
+}
+
+function planRoute() {
+  const sel = window._routeSelected;
+  if (!sel.length) { showToast('Check contacts in the sidebar to add them to your route.'); return; }
+
+  const origin = '6420 Dutchmans Pkwy, Louisville, KY 40205';
+  const stops = sel.map(id => {
+    const c = contacts.find(x => x.id === id);
+    if (!c) return null;
+    return (c.address || '') + ' ' + (c.city || '') + ' KY ' + (c.zip || '');
+  }).filter(Boolean);
+
+  if (!stops.length) { showToast('No valid addresses found for selected contacts.'); return; }
+
+  // Google Maps directions URL — max 10 waypoints
+  const waypoints = stops.slice(0, 9); // first 9 as waypoints
+  const destination = stops[stops.length > 9 ? 9 : stops.length - 1];
+  const waypointStr = waypoints.slice(0, -1).map(s => encodeURIComponent(s)).join('|');
+
+  let url = 'https://www.google.com/maps/dir/?api=1' +
+    '&origin=' + encodeURIComponent(origin) +
+    '&destination=' + encodeURIComponent(destination) +
+    '&travelmode=driving';
+  if (waypointStr) url += '&waypoints=' + waypointStr;
+
+  window.open(url, '_blank');
+}
 
 // ── INIT ──────────────────────────────────────────────────────────────
 loadFromSheets();
