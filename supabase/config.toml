@@ -1,0 +1,9 @@
+# miiCase / miiSpine AR — Supabase project config
+# Docs: https://supabase.com/docs/guides/cli/config
+project_id = "miicase-ar"
+
+[db]
+major_version = 15
+
+[functions.autopilot]
+verify_jwt = false   # invoked by pg_cron / scheduler, not end users
