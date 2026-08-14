@@ -247,38 +247,105 @@ const fmt = (n) => "$" + Math.round(n || 0).toLocaleString();
 const fmtK = (n) => { n = n || 0; return n >= 1000 ? "$" + (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k" : "$" + Math.round(n); };
 const PRIORITY_WEIGHT = { urgent: 100, high: 60, normal: 30, low: 10, hold: 0 };
 
-// ---- Derive a normalized case model from the demo data -----
-function buildCases() {
-  return MOCK.cases.map((c) => {
-    const totalBilled = c.bills.reduce((s, b) => s + b.billed, 0);
-    const pipPaid = c.bills.reduce((s, b) => s + b.pip_paid, 0);
-    const insPaid = c.bills.reduce((s, b) => s + b.ins_paid, 0);
-    const totalLien = c.bills.reduce((s, b) => s + b.lien, 0);
-    const collected = c.bills.reduce((s, b) => s + b.collected, 0);
-    const miispineLien = c.bills.filter((b) => b.mii).reduce((s, b) => s + b.lien, 0);
-    const otherLiens = totalLien - miispineLien;
-    const balance = totalLien - collected;
-    const collateral = pipPaid + insPaid;
-    const netSpecials = totalBilled - collateral;
+// ---- Date helpers ------------------------------------------
+const daysAgo = (ts) => (ts ? Math.floor((Date.now() - new Date(ts).getTime()) / 86_400_000) : null);
+const signedDays = (ts) => (ts == null ? null : Math.floor((new Date(ts).getTime() - Date.now()) / 86_400_000));
 
-    // Same priority formula as the autopilot_queue view.
-    const ageForScore = Math.min(c.last_outreach_days ?? c.opened_days, 60);
-    const balanceFactor = balance > 50000 ? 30 : balance > 20000 ? 15 : 0;
-    const score = (PRIORITY_WEIGHT[c.priority] || 0) + ageForScore + balanceFactor;
+// ---- Shared derivation: bills → totals, balance, priority score ----
+// `base` carries the raw fields; both the demo mapper and the live case
+// mapper feed the same shape here so the numbers stay identical to the SQL.
+function deriveCase(base) {
+  const b = base.bills;
+  const totalBilled = b.reduce((s, x) => s + x.billed, 0);
+  const pipPaid = b.reduce((s, x) => s + x.pip_paid, 0);
+  const insPaid = b.reduce((s, x) => s + x.ins_paid, 0);
+  const totalLien = b.reduce((s, x) => s + x.lien, 0);
+  const collected = b.reduce((s, x) => s + x.collected, 0);
+  const miispineLien = b.filter((x) => x.mii).reduce((s, x) => s + x.lien, 0);
+  const otherLiens = totalLien - miispineLien;
+  const balance = totalLien - collected;
+  const collateral = pipPaid + insPaid;
+  const netSpecials = totalBilled - collateral;
 
+  // Same priority formula as the autopilot_queue view.
+  const ageForScore = Math.min(base.last_outreach_days ?? base.opened_days, 60);
+  const balanceFactor = balance > 50000 ? 30 : balance > 20000 ? 15 : 0;
+  const score = (PRIORITY_WEIGHT[base.priority] || 0) + ageForScore + balanceFactor;
+
+  return {
+    ...base,
+    totalBilled, pipPaid, insPaid, totalLien, collected,
+    miispineLien, otherLiens, balance, collateral, netSpecials, score,
+    dueForFollowup: base.next_followup_days !== null && base.next_followup_days <= 0 && base.priority !== "hold" && !["closed", "settled"].includes(base.status),
+    overdue: base.next_followup_days !== null && base.next_followup_days <= -7,
+  };
+}
+
+// Demo mapper
+function buildMockCases() {
+  return MOCK.cases.map((c) => deriveCase({
+    id: c.id, firm: c.firm, patient: c.patient, claim: c.claim, status: c.status,
+    opened_days: c.opened_days, priority: c.priority,
+    last_outreach_days: c.last_outreach_days, next_followup_days: c.next_followup_days,
+    pip: c.pip, milestone: c.milestone, bills: c.bills,
+    firmName: MOCK.firms[c.firm].name, atty: MOCK.attorneys[c.attorney],
+  }));
+}
+
+// Supabase one-to-one embeds come back as an object; one-to-many as an array.
+const firstOf = (v) => (Array.isArray(v) ? v[0] : v) || null;
+
+// Live mapper: a `cases` row with embedded firm/attorney/client/pip/bills/milestones.
+function mapCaseRow(row) {
+  const atty = firstOf(row.attorney) || {};
+  const firm = firstOf(row.firm) || {};
+  const client = firstOf(row.client) || {};
+  const pipRow = firstOf(row.pip_ledger);
+  const bills = (row.medical_bills || []).map((b) => {
+    const prov = firstOf(b.provider) || {};
     return {
-      ...c,
-      firmName: MOCK.firms[c.firm].name,
-      atty: MOCK.attorneys[c.attorney],
-      totalBilled, pipPaid, insPaid, totalLien, collected,
-      miispineLien, otherLiens, balance, collateral, netSpecials, score,
-      dueForFollowup: c.next_followup_days !== null && c.next_followup_days <= 0 && c.priority !== "hold" && !["closed", "settled"].includes(c.status),
-      overdue: c.next_followup_days !== null && c.next_followup_days <= -7,
+      desc: b.description || "", prov: prov.name || "", mii: !!prov.is_miispine,
+      billed: +b.billed_amount || 0, pip_paid: +b.pip_paid || 0, ins_paid: +b.insurance_paid || 0,
+      lien: +b.lien_amount || 0, collected: +b.collected_amount || 0,
     };
+  });
+  const ms = (row.milestones || [])
+    .filter((m) => m.actual_date)
+    .sort((a, b) => new Date(b.actual_date) - new Date(a.actual_date))[0];
+  const lastInitial = client.last_name ? client.last_name.charAt(0) + "." : "";
+
+  return deriveCase({
+    id: row.id,
+    firm: firm.id || row.firm_id,
+    patient: `${client.first_name || ""} ${lastInitial}`.trim() || "Unknown",
+    claim: row.claim_number || "",
+    status: row.status,
+    opened_days: daysAgo(row.opened_at) ?? 0,
+    priority: row.followup_priority,
+    last_outreach_days: daysAgo(row.last_outreach_at),
+    next_followup_days: signedDays(row.next_followup_at),
+    pip: pipRow ? { status: pipRow.status || "unknown", remaining: +pipRow.balance_remaining || 0 } : { status: "unknown", remaining: 0 },
+    milestone: ms ? { type: ms.milestone_type, days: daysAgo(ms.actual_date) } : null,
+    bills,
+    firmName: firm.name || "",
+    atty: { name: atty.name || "Counsel", email: atty.email, avg_response_days: atty.avg_response_days, preferred_contact: atty.preferred_contact || "email" },
   });
 }
 
+const CASE_SELECT = `
+  id, claim_number, status, opened_at, followup_priority, last_outreach_at, next_followup_at, firm_id,
+  firm:firms(id, name),
+  attorney:attorneys(name, email, avg_response_days, preferred_contact),
+  client:clients(first_name, last_name),
+  pip_ledger(status, balance_remaining),
+  medical_bills(description, billed_amount, pip_paid, insurance_paid, lien_amount, collected_amount, provider:providers(name, is_miispine)),
+  milestones(milestone_type, actual_date)
+`;
+
 let CASES = [];
+let AR_AGING = null;   // ar_aging view rows (live) or null (demo → computed)
+let QUEUE = null;      // autopilot_queue view rows (live) or null (demo → computed)
+let LIVE = false;
 let selectedId = null;
 let activeTab = "dashboard";
 
@@ -288,28 +355,41 @@ let activeTab = "dashboard";
 async function loadData() {
   const dot = document.getElementById("sync-dot");
   const label = document.getElementById("sync-label");
-  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-    try {
-      const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-      const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      // Live path: read the ar_aging + autopilot_queue views and cases.
-      // (Requires an authenticated session with a firm_id claim under RLS.)
-      const { data, error } = await sb.from("cases").select("id").limit(1);
-      if (error) throw error;
-      dot.className = "sync-dot ok";
-      label.textContent = "Connected";
-      // For brevity the live renderers reuse the same shape; a production build
-      // would map the view rows here. Demo data still backs the detail math.
-      CASES = buildCases();
-    } catch (e) {
-      dot.className = "sync-dot error";
-      label.textContent = "Connection failed — demo data";
-      CASES = buildCases();
-    }
-  } else {
-    dot.className = "sync-dot demo";
-    label.textContent = "Demo data";
-    CASES = buildCases();
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    LIVE = false; AR_AGING = null; QUEUE = null; CASES = buildMockCases();
+    dot.className = "sync-dot demo"; label.textContent = "Demo data";
+    renderHeaderStats(); render();
+    return;
+  }
+
+  try {
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+    const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data: { session } } = await sb.auth.getSession();
+
+    // Read cases (with embeds for the detail math) plus the two views in parallel.
+    // RLS scopes everything to the session's firm_id claim.
+    const [casesRes, agingRes, queueRes] = await Promise.all([
+      sb.from("cases").select(CASE_SELECT),
+      sb.from("ar_aging").select("*"),
+      sb.from("autopilot_queue").select("*"),
+    ]);
+    if (casesRes.error) throw casesRes.error;
+
+    CASES = (casesRes.data || []).map(mapCaseRow);
+    AR_AGING = agingRes.error ? null : agingRes.data;      // fall back to computed if the view read fails
+    QUEUE = queueRes.error ? null : queueRes.data;
+    LIVE = true;
+
+    dot.className = "sync-dot ok";
+    if (!session) label.textContent = "Live · signed out (RLS hides rows)";
+    else if (!CASES.length) label.textContent = "Live · no cases for this firm";
+    else label.textContent = `Live · ${CASES.length} cases`;
+  } catch (e) {
+    console.error("live load failed:", e);
+    LIVE = false; AR_AGING = null; QUEUE = null; CASES = buildMockCases();
+    dot.className = "sync-dot error"; label.textContent = "Connection failed — demo data";
   }
   renderHeaderStats();
   render();
@@ -345,9 +425,9 @@ function render() {
 // ---- Dashboard: AR aging by firm ---------------------------
 function renderDashboard() {
   const open = CASES.filter((c) => c.status !== "closed");
-  const totalOut = open.reduce((s, c) => s + c.balance, 0);
   const totalCollected = CASES.reduce((s, c) => s + c.collected, 0);
-  const miiOut = open.reduce((s, c) => s + Math.max(0, c.miispineLien - 0), 0);
+  const miiOut = open.reduce((s, c) => s + Math.max(0, c.miispineLien), 0);
+  const miiCount = open.filter((c) => c.miispineLien > 0).length;
 
   const bucketDefs = [
     { key: "b1", label: "0–30", cls: "seg-0-30", test: (d) => d <= 30 },
@@ -357,19 +437,36 @@ function renderDashboard() {
     { key: "b5", label: "180+", cls: "seg-180", test: (d) => d > 180 },
   ];
 
-  const firms = {};
-  for (const c of open) {
-    const f = (firms[c.firm] ||= { name: c.firmName, count: 0, total: 0, buckets: { b1: 0, b2: 0, b3: 0, b4: 0, b5: 0 } });
-    f.count++; f.total += c.balance;
-    const bd = bucketDefs.find((b) => b.test(c.opened_days));
-    if (bd) f.buckets[bd.key] += c.balance;
+  // Firm aging: straight from the ar_aging view when live, else computed from CASES.
+  let firmList;
+  if (LIVE && AR_AGING) {
+    firmList = AR_AGING.map((r) => ({
+      name: r.firm,
+      count: Number(r.case_count) || 0,
+      total: Number(r.total_outstanding) || 0,
+      buckets: {
+        b1: Number(r.bucket_0_30) || 0, b2: Number(r.bucket_31_60) || 0,
+        b3: Number(r.bucket_61_90) || 0, b4: Number(r.bucket_91_180) || 0,
+        b5: Number(r.bucket_180_plus) || 0,
+      },
+    })).sort((a, b) => b.total - a.total);
+  } else {
+    const firms = {};
+    for (const c of open) {
+      const f = (firms[c.firm] ||= { name: c.firmName, count: 0, total: 0, buckets: { b1: 0, b2: 0, b3: 0, b4: 0, b5: 0 } });
+      f.count++; f.total += c.balance;
+      const bd = bucketDefs.find((b) => b.test(c.opened_days));
+      if (bd) f.buckets[bd.key] += c.balance;
+    }
+    firmList = Object.values(firms).sort((a, b) => b.total - a.total);
   }
-  const firmList = Object.values(firms).sort((a, b) => b.total - a.total);
+  const totalOut = firmList.reduce((s, f) => s + f.total, 0);
+  const openCount = firmList.reduce((s, f) => s + f.count, 0);
 
   const cards = `
     <div class="card-row">
-      <div class="card"><div class="card-label">Total Outstanding</div><div class="card-num accent">${fmt(totalOut)}</div><div class="card-sub">${open.length} open cases</div></div>
-      <div class="card"><div class="card-label">miiSpine Liens</div><div class="card-num">${fmt(miiOut)}</div><div class="card-sub">across ${open.filter((c)=>c.miispineLien>0).length} cases</div></div>
+      <div class="card"><div class="card-label">Total Outstanding</div><div class="card-num accent">${fmt(totalOut)}</div><div class="card-sub">${openCount} open cases</div></div>
+      <div class="card"><div class="card-label">miiSpine Liens</div><div class="card-num">${fmt(miiOut)}</div><div class="card-sub">across ${miiCount} cases</div></div>
       <div class="card"><div class="card-label">Collected YTD</div><div class="card-num good">${fmt(totalCollected)}</div><div class="card-sub">recovered to date</div></div>
       <div class="card"><div class="card-label">Overdue Follow-ups</div><div class="card-num accent">${CASES.filter((c)=>c.overdue).length}</div><div class="card-sub">7+ days past due</div></div>
     </div>`;
@@ -420,9 +517,27 @@ function renderCases() {
 
 // ---- Autopilot queue ---------------------------------------
 function renderAutopilot() {
-  const queue = CASES
-    .filter((c) => !["closed", "settled"].includes(c.status) && c.priority !== "hold" && (c.next_followup_days === null || c.next_followup_days <= 0))
-    .sort((a, b) => b.score - a.score);
+  // From the autopilot_queue view when live (server-computed score + ordering),
+  // else computed from CASES with the same formula.
+  let queue;
+  if (LIVE && QUEUE) {
+    queue = QUEUE.map((r) => ({
+      id: r.id, patient: r.patient_name || "Unknown", firmName: r.firm_name || "",
+      attyName: r.attorney_name || "Counsel", preferred: r.preferred_contact || "email",
+      balance: Number(r.balance_outstanding) || 0,
+      last_outreach_days: r.days_since_outreach === null ? null : Number(r.days_since_outreach),
+      priority: r.followup_priority, score: Number(r.priority_score) || 0,
+    }));
+  } else {
+    queue = CASES
+      .filter((c) => !["closed", "settled"].includes(c.status) && c.priority !== "hold" && (c.next_followup_days === null || c.next_followup_days <= 0))
+      .sort((a, b) => b.score - a.score)
+      .map((c) => ({
+        id: c.id, patient: c.patient, firmName: c.firmName, attyName: c.atty.name,
+        preferred: c.atty.preferred_contact, balance: c.balance,
+        last_outreach_days: c.last_outreach_days, priority: c.priority, score: c.score,
+      }));
+  }
   const maxScore = Math.max(...queue.map((c) => c.score), 1);
 
   if (!queue.length) return `<div class="section-title">Autopilot Queue</div><div class="empty-state">No cases due for follow-up. 🎉</div>`;
@@ -435,7 +550,7 @@ function renderAutopilot() {
     <tr data-case="${c.id}" onclick="selectCase('${c.id}')">
       <td><span class="score"><span class="num" style="width:26px;display:inline-block">${c.score}</span><span class="score-track"><span class="score-fill" style="width:${(c.score / maxScore) * 100}%"></span></span></span></td>
       <td><div class="name-primary">${c.patient}</div><div class="name-sub">${c.firmName}</div></td>
-      <td>${c.atty.name}<div class="name-sub">${c.atty.preferred_contact}</div></td>
+      <td>${c.attyName}<div class="name-sub">${c.preferred}</div></td>
       <td class="right num">${fmt(c.balance)}</td>
       <td>${daysCell}</td>
       <td><span class="badge pri-${c.priority}">${c.priority}</span></td>

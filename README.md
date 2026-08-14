@@ -76,9 +76,21 @@ key under RLS.
 
 Open `app/index.html` directly and it renders against an embedded demo dataset
 that mirrors `seed.sql` — no backend needed. Fill in `SUPABASE_URL` /
-`SUPABASE_ANON_KEY` at the top of the inline `<script>` to point it at a live
-project (live reads require a signed-in session carrying a `firm_id` JWT claim,
-which RLS enforces).
+`SUPABASE_ANON_KEY` at the top of the inline `<script>` and it switches to the
+live path:
+
+- **AR Dashboard** reads the **`ar_aging`** view (server-computed age buckets).
+- **Autopilot Queue** reads the **`autopilot_queue`** view (server-computed
+  `priority_score` and ordering).
+- **Cases** / detail read `cases` with embedded bills, PIP, milestones, firm and
+  attorney, and compute the demand math client-side with the same formula as the
+  SQL.
+
+All reads go through the anon key under RLS, so a signed-in session carrying a
+`firm_id` JWT claim is required — the header shows `Live · N cases`, or
+`Live · signed out (RLS hides rows)` when there's no session. If a view read
+fails, that tab falls back to computing from the fetched cases; if the whole
+load fails, the dashboard falls back to demo data.
 
 Three tabs:
 - **AR Dashboard** — outstanding balances bucketed by case age (0–30 … 180+) per firm.
