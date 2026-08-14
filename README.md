@@ -30,6 +30,8 @@ self-contained, branded web dashboard.
 | `supabase/migrations/0004_triggers.sql` | `updated_at` stamps + AR rollup / collateral-calc sync |
 | `supabase/migrations/0005_cron.sql` | Nightly pg_cron schedule for the autopilot function |
 | `supabase/migrations/0006_auth.sql` | `user_profiles` mapping + access-token hook that stamps `firm_id` into the JWT |
+| `supabase/migrations/0007_staff_and_import.sql` | miiSpine staff role (sees all firms) + `staging_import` / `normalize_import()` for the legacy sheet |
+| `tools/import_from_xlsx.js` | Extracts the legacy PI AR workbook to a staging CSV (no npm deps) |
 | `supabase/seed.sql` | Demo dataset (2 firms, 6 cases, bills, PIP, milestones) |
 | `supabase/functions/autopilot/index.ts` | The nightly follow-up engine |
 | `app/index.html` | The AR dashboard (demo-data fallback, no build step) |
@@ -61,6 +63,55 @@ RLS scopes every read to a `firm_id` JWT claim. That claim is put there by a
 So a user with no profile row gets no `firm_id` claim and sees zero rows — RLS
 fails closed. The hook is wired up in `config.toml` for local dev; on a hosted
 project, enable it once under **Authentication → Hooks → Custom Access Token**.
+
+**miiSpine staff** (the AR team) work the whole book, not one firm. `0007`
+adds an `is_staff` flag: `assign_staff('ar@miispine.com')` gives a user a
+cross-firm view (every firm-isolation policy is `is_staff() OR firm_id = claim`).
+Per-firm attorney logins still work via `assign_user_to_firm` — the structure is
+there to switch on attorney portals later.
+
+## Importing the legacy spreadsheet
+
+The old workbook is a set of worklist tabs (one row per case, attorney/carrier
+as free text, PIP status and a single `Charges` figure — no line-item bills).
+`0007` provides a `staging_import` landing table and `normalize_import()` that
+turns those flat rows into the relational model, **deduped**, with junk routed
+to a review flag instead of being coerced. All PHI stays on the box — it's a
+local file → local/covered DB conversion, no third party.
+
+```bash
+# 1. Extract the workbook to a staging CSV (no npm deps; needs `unzip`)
+node tools/import_from_xlsx.js Master_PI_AR_Sheet.xlsx > staging.csv
+
+# 2. Load it and normalize (psql against your covered DB)
+psql "$DATABASE_URL" -c "\copy staging_import(source_tab,source_row,patient_name,\
+pip_claim,doi_raw,charges_raw,medical_insurance,lien_on_file,pip_payer,attorney,\
+status_raw,last_action_raw,notes,voice_mail,assigned_to,faxed) \
+from 'staging.csv' with (format csv, header true)"
+psql "$DATABASE_URL" -c "select * from normalize_import();"
+
+# 3. Reconcile before trusting it, then review flagged rows
+psql "$DATABASE_URL" -c "select * from import_reconcile;"
+psql "$DATABASE_URL" -c "select source_tab, patient_name, review_reason
+  from staging_import where needs_review;"
+```
+
+**What it does:** splits `Last, First` names; converts Excel serial dates;
+parses money; dedups firms by a normalized key (`Pittenger Law Office` ==
+`Pittenger Law Office, PLLC`); collapses the same case appearing across tabs to
+one (`patient` + `claim`); treats `Charges` as the miiSpine lien exposure when a
+lien is on file; maps `Exhausted/Reserved/Open/PAID` to PIP + case status. The
+triggers then populate the AR rollups and `collateral_calc`.
+
+**On the de-identified reference file:** 308 data rows → **201 cases**, 171
+clients, 81 firms; ~$939k billed / ~$575k outstanding (the raw row sum double-
+counts, because cases repeat across tabs — dedup is the point). **24 rows
+flagged** for human review (unrecognized status, missing attorney, single-token
+names, unparseable charges). Two follow-ups the review pass owns, not the
+importer: near-duplicate patients that carry different claim numbers, and firm
+strings that bundle an individual attorney name (`Pittenger Law Office, PLLC -
+Daniel Sullivan`) — the same firm, different attorney, which is where the
+firm/attorney split gets untangled by hand.
 
 ## Setup
 
