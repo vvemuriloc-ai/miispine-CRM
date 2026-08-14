@@ -29,6 +29,7 @@ self-contained, branded web dashboard.
 | `supabase/migrations/0003_views.sql` | `autopilot_queue` + `ar_aging` views (`security_invoker`) |
 | `supabase/migrations/0004_triggers.sql` | `updated_at` stamps + AR rollup / collateral-calc sync |
 | `supabase/migrations/0005_cron.sql` | Nightly pg_cron schedule for the autopilot function |
+| `supabase/migrations/0006_auth.sql` | `user_profiles` mapping + access-token hook that stamps `firm_id` into the JWT |
 | `supabase/seed.sql` | Demo dataset (2 firms, 6 cases, bills, PIP, milestones) |
 | `supabase/functions/autopilot/index.ts` | The nightly follow-up engine |
 | `app/index.html` | The AR dashboard (demo-data fallback, no build step) |
@@ -45,6 +46,21 @@ self-contained, branded web dashboard.
   HB 627 fields.
 - **`audit_log`** is append-only — `ON UPDATE/DELETE DO INSTEAD NOTHING` rules
   make PHI-access rows immutable for the 6-year retention requirement.
+
+## Auth & multi-tenancy
+
+RLS scopes every read to a `firm_id` JWT claim. That claim is put there by a
+**custom access token hook** (`0006_auth.sql`):
+
+1. `user_profiles` maps each `auth.users` row to a `firm_id` (+ `staff`/`admin` role).
+2. `public.custom_access_token_hook(event)` runs on every token issuance and
+   stamps `firm_id` / `firm_role` into the JWT claims from that mapping.
+3. `public.assign_user_to_firm(email, firm_id, role)` is the admin helper that
+   links a signed-up user to their firm.
+
+So a user with no profile row gets no `firm_id` claim and sees zero rows — RLS
+fails closed. The hook is wired up in `config.toml` for local dev; on a hosted
+project, enable it once under **Authentication → Hooks → Custom Access Token**.
 
 ## Setup
 
@@ -66,6 +82,12 @@ supabase secrets set AUTOPILOT_DRY_RUN=true          # draft + log, don't send
 
 # 5. Enable the nightly schedule (edit placeholders in 0005_cron.sql first)
 supabase db execute --file supabase/migrations/0005_cron.sql
+
+# 6. Enable the access-token hook (local dev picks it up from config.toml;
+#    hosted projects: Dashboard → Authentication → Hooks → Custom Access Token
+#    → public.custom_access_token_hook), then assign users to firms:
+supabase db execute --sql "select public.assign_user_to_firm(
+  'dana@morganhale.com', '11111111-1111-1111-1111-111111111111', 'admin');"
 ```
 
 Copy `.env.example` → `.env` for local values. **The service-role key is
@@ -86,11 +108,14 @@ live path:
   attorney, and compute the demand math client-side with the same formula as the
   SQL.
 
-All reads go through the anon key under RLS, so a signed-in session carrying a
-`firm_id` JWT claim is required — the header shows `Live · N cases`, or
-`Live · signed out (RLS hides rows)` when there's no session. If a view read
-fails, that tab falls back to computing from the fetched cases; if the whole
-load fails, the dashboard falls back to demo data.
+When a project is configured, the dashboard shows a **login screen**
+(email+password or magic link, via Supabase Auth). After sign-in it reads under
+RLS scoped to the user's `firm_id` claim — the header shows `Live · N cases`, and
+a **Sign out** button appears. A signed-in user with no `firm_id` claim (no
+`user_profiles` row) sees `Live · no cases for this firm`. If a view read fails,
+that tab falls back to computing from the fetched cases; if the whole load fails,
+the dashboard falls back to demo data. With no project configured it stays on the
+embedded demo dataset and never prompts to sign in.
 
 Three tabs:
 - **AR Dashboard** — outstanding balances bucketed by case age (0–30 … 180+) per firm.

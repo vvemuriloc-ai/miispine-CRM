@@ -7,3 +7,12 @@ major_version = 15
 
 [functions.autopilot]
 verify_jwt = false   # invoked by pg_cron / scheduler, not end users
+
+[auth]
+enabled = true
+
+# Stamp firm_id into the JWT so RLS can scope each user to their firm.
+# (0006_auth.sql defines the function; this wires it up.)
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/public/custom_access_token_hook"
