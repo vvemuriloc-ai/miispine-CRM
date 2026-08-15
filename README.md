@@ -32,6 +32,8 @@ self-contained, branded web dashboard.
 | `supabase/migrations/0006_auth.sql` | `user_profiles` mapping + access-token hook that stamps `firm_id` into the JWT |
 | `supabase/migrations/0007_staff_and_import.sql` | miiSpine staff role (sees all firms) + `staging_import` / `normalize_import()` for the legacy sheet |
 | `supabase/migrations/0008_lien_reconciliation.sql` | Lien = charges outstanding after PIP/insurance (trigger) + case review flags + `review_queue` |
+| `supabase/migrations/0009_records_access.sql` | Private records bucket, HIPAA-gated RLS, attorney-guard trigger, `case_records` view |
+| `supabase/functions/records-download/index.ts` | Mints audited, 60s signed URLs after firm + HIPAA checks |
 | `tools/import_from_xlsx.js` | Extracts the legacy PI AR workbook to a staging CSV (no npm deps) |
 | `supabase/seed.sql` | Demo dataset (2 firms, 6 cases, bills, PIP, milestones) |
 | `supabase/functions/autopilot/index.ts` | The nightly follow-up engine |
@@ -54,6 +56,28 @@ self-contained, branded web dashboard.
   HB 627 fields.
 - **`audit_log`** is append-only — `ON UPDATE/DELETE DO INSTEAD NOTHING` rules
   make PHI-access rows immutable for the 6-year retention requirement.
+
+## Medical records (attorney self-serve)
+
+The attorney portal's headline feature: counsel can see every record on their
+cases, download the ones miiSpine has uploaded, and request the rest — instead of
+faxing a request and waiting blind. Because this is PHI leaving to an outside
+party, the guardrails are the feature (`0009_records_access.sql`):
+
+- Files live in a **private** Supabase Storage bucket; the browser never sees a
+  raw path. Downloads go through the **`records-download` edge function**, which
+  re-checks firm ownership (RLS, on the caller's JWT) **and** the client's
+  `hipaa_release_on_file`, writes an immutable `audit_log` row, then mints a
+  **60-second signed URL**. No release on file ⇒ download is refused.
+- Attorneys can only **create request rows** — a `BEFORE INSERT` trigger strips
+  any `storage_key` and forces `status='requested'`, so they can never point a
+  record at another firm's file. Only miiSpine staff (`is_staff`) set
+  `storage_key`, upload to the bucket, and `UPDATE`/`DELETE` records.
+
+In the dashboard, each case's detail panel has a **Medical Records** section: a
+HIPAA banner, the record checklist with live status, and per-row **Download**
+(attorney, when a file is ready and release is on file), **Request** (attorney,
+when missing), or **Upload** (staff).
 
 ## Auth & multi-tenancy
 

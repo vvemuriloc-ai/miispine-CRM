@@ -66,6 +66,28 @@ body { font-family: 'DM Sans', system-ui, -apple-system, "Segoe UI", Roboto, san
 .btn-resolve:hover { background: var(--green); color: white; }
 .review-ok { text-align: center; padding: 50px 20px; color: var(--green); font-size: 14px; }
 
+/* MEDICAL RECORDS */
+.hipaa-line { display: flex; align-items: center; gap: 7px; font-size: 11.5px; padding: 8px 10px; border-radius: 7px; margin-bottom: 11px; }
+.hipaa-ok { background: rgba(39,115,90,0.10); color: var(--green); }
+.hipaa-no { background: rgba(192,57,43,0.10); color: var(--red); }
+.rec-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); }
+.rec-item:first-child { border-top: none; }
+.rec-label { flex: 1; font-size: 12.5px; font-weight: 500; }
+.rec-label .rec-file { font-size: 10.5px; color: var(--mid); font-weight: 400; margin-top: 1px; }
+.rec-status { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+.rs-uploaded { background: rgba(39,115,90,0.14); color: var(--green); }
+.rs-received { background: rgba(147,210,195,0.3); color: var(--teal-deep); }
+.rs-requested { background: rgba(212,130,10,0.15); color: var(--yellow); }
+.rs-pending, .rs-missing { background: var(--sand); color: var(--mid); }
+.rec-btn { padding: 5px 11px; border-radius: 6px; font-family: 'DM Sans', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); white-space: nowrap; }
+.rec-download { background: var(--dark); color: white; border-color: var(--dark); }
+.rec-download:hover { background: var(--orange); border-color: var(--orange); }
+.rec-download:disabled { background: var(--border); color: var(--mid); border-color: var(--border); cursor: default; }
+.rec-request { background: white; color: var(--orange); border-color: var(--orange); }
+.rec-request:hover { background: var(--orange); color: white; }
+.rec-upload { background: var(--teal-deep); color: white; border-color: var(--teal-deep); }
+.rec-wait { font-size: 11px; color: var(--mid); font-style: italic; }
+
 /* MAIN LAYOUT */
 .main-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
 .content-panel { flex: 1; overflow: auto; background: var(--light-sand); }
@@ -237,6 +259,8 @@ body { font-family: 'DM Sans', system-ui, -apple-system, "Segoe UI", Roboto, san
 </div>
 
 <div class="toast" id="toast"></div>
+<input type="file" id="rec-file" style="display:none" accept="application/pdf,image/*">
+
 
 <script type="module">
 // ============================================================
@@ -267,12 +291,21 @@ const MOCK = {
   },
   cases: [
     { id: "c1", firm: "f1", attorney: "at1", patient: "James W.", claim: "CLM-88231", status: "mmi_reached", opened_days: 210, priority: "urgent", last_outreach_days: 20, next_followup_days: -2, pip: { status: "exhausted", remaining: 0 }, milestone: { type: "mmi", days: 60 },
+      hipaa: true,
+      records: [
+        { id: "r1", type: "op_report", status: "uploaded", file: true, filename: "op_report_2025-03.pdf" },
+        { id: "r2", type: "imaging", status: "uploaded", file: true, filename: "mri_lumbar.pdf" },
+        { id: "r3", type: "mmi_letter", status: "requested" },
+        { id: "r4", type: "progress_notes", status: "received" },
+      ],
       bills: [
         { desc: "MRI lumbar spine", prov: "Derby City Imaging", mii: false, billed: 3200, pip_paid: 3200, ins_paid: 0, collected: 0 },
         { desc: "Lumbar microdiscectomy", prov: "miiSpine Surgery Center", mii: true, billed: 42000, pip_paid: 6800, ins_paid: 0, collected: 0 },
         { desc: "Transforaminal injection", prov: "Ohio Valley Pain Mgmt", mii: false, billed: 4500, pip_paid: 0, ins_paid: 0, collected: 0 },
       ] },
     { id: "c2", firm: "f1", attorney: "at2", patient: "Aisha C.", claim: "CLM-88240", status: "treatment_complete", opened_days: 95, priority: "high", last_outreach_days: 9, next_followup_days: -1, pip: { status: "open", remaining: 5800 }, milestone: { type: "imaging_complete", days: 70 },
+      hipaa: false,
+      records: [{ id: "r5", type: "initial_eval", status: "uploaded", file: true, filename: "eval.pdf" }],
       bills: [
         { desc: "Chiropractic manipulation", prov: "Active Life Chiropractic", mii: false, billed: 2600, pip_paid: 2100, ins_paid: 0, collected: 0 },
         { desc: "MRI knee", prov: "Derby City Imaging", mii: false, billed: 2800, pip_paid: 2100, ins_paid: 0, collected: 0 },
@@ -282,6 +315,12 @@ const MOCK = {
         { desc: "New patient eval", prov: "Ohio Valley Pain Mgmt", mii: false, billed: 1800, pip_paid: 1800, ins_paid: 0, collected: 0 },
       ] },
     { id: "c4", firm: "f2", attorney: "at3", patient: "Latoya S.", claim: "CLM-77012", status: "demand_sent", opened_days: 150, priority: "high", last_outreach_days: 5, next_followup_days: 4, pip: { status: "exhausted", remaining: 0 }, milestone: { type: "demand_ready", days: 32 },
+      hipaa: true,
+      records: [
+        { id: "r6", type: "op_report", status: "uploaded", file: true, filename: "acdf_op_report.pdf" },
+        { id: "r7", type: "initial_eval", status: "uploaded", file: true, filename: "initial_eval.pdf" },
+        { id: "r8", type: "imaging", status: "requested" },
+      ],
       bills: [
         { desc: "ACDF C5-C6", prov: "miiSpine Surgery Center", mii: true, billed: 51000, pip_paid: 10000, ins_paid: 0, collected: 0 },
         { desc: "MRI cervical spine", prov: "Derby City Imaging", mii: false, billed: 3200, pip_paid: 3200, ins_paid: 0, collected: 0 },
@@ -348,6 +387,8 @@ function deriveCase(base) {
     ...base,
     reviewStatus: base.review?.status || base.reviewStatus || "ok",
     reviewReason: base.review?.reason || base.reviewReason || null,
+    hipaa: base.hipaa !== false,
+    records: base.records || [],
     totalBilled, pipPaid, insPaid, totalLien, collected,
     miispineLien, otherLiens, balance, collateral, netSpecials, score,
     dueForFollowup: base.next_followup_days !== null && base.next_followup_days <= 0 && base.priority !== "hold" && !["closed", "settled"].includes(base.status),
@@ -362,6 +403,7 @@ function buildMockCases() {
     opened_days: c.opened_days, priority: c.priority,
     last_outreach_days: c.last_outreach_days, next_followup_days: c.next_followup_days,
     pip: c.pip, milestone: c.milestone, bills: c.bills, review: c.review,
+    hipaa: c.hipaa, records: c.records,
     firmName: MOCK.firms[c.firm].name, atty: MOCK.attorneys[c.attorney],
   }));
 }
@@ -405,6 +447,10 @@ function mapCaseRow(row) {
     atty: { name: atty.name || "Counsel", email: atty.email, avg_response_days: atty.avg_response_days, preferred_contact: atty.preferred_contact || "email" },
     reviewStatus: row.review_status || "ok",
     reviewReason: row.review_reason || null,
+    hipaa: !!client.hipaa_release_on_file,
+    records: (row.records || []).map((r) => ({
+      id: r.id, type: r.record_type, status: r.status, filename: r.filename, file: !!r.storage_key,
+    })),
   });
 }
 
@@ -413,16 +459,19 @@ const CASE_SELECT = `
   review_status, review_reason,
   firm:firms(id, name),
   attorney:attorneys(name, email, avg_response_days, preferred_contact),
-  client:clients(first_name, last_name),
+  client:clients(first_name, last_name, hipaa_release_on_file),
   pip_ledger(status, balance_remaining),
   medical_bills(id, description, billed_amount, pip_paid, insurance_paid, lien_amount, lien_manual, collected_amount, provider:providers(name, is_miispine)),
-  milestones(milestone_type, actual_date)
+  milestones(milestone_type, actual_date),
+  records(id, record_type, status, storage_key, filename)
 `;
 
 let CASES = [];
 let AR_AGING = null;   // ar_aging view rows (live) or null (demo → computed)
 let QUEUE = null;      // autopilot_queue view rows (live) or null (demo → computed)
 let LIVE = false;
+let IS_STAFF = false;   // miiSpine staff (upload) vs attorney (request), from the JWT
+const decodeClaim = (jwt, key) => { try { return JSON.parse(atob(jwt.split(".")[1]))[key]; } catch { return undefined; } };
 let selectedId = null;
 let activeTab = "dashboard";
 
@@ -473,6 +522,7 @@ async function loadData() {
     return;
   }
   hideLogin(); setSignoutVisible(true);
+  IS_STAFF = decodeClaim(session.access_token, "is_staff") === true;
 
   try {
     // Cases (with embeds for the detail math) + the two views, in parallel.
@@ -757,6 +807,98 @@ window.selectCase = (id) => {
 const CASE_STATUSES = ["active", "treatment_complete", "mmi_reached", "demand_sent", "negotiating", "settled", "closed", "disputed"];
 let reconCtx = null;  // context for the live reconcile preview / save
 
+// ---- Medical records: the attorney self-serve section -------
+const RECORD_TYPES = [
+  ["initial_eval", "Initial Evaluation"], ["op_report", "Operative Report"],
+  ["imaging", "Imaging"], ["progress_notes", "Progress Notes"],
+  ["discharge", "Discharge Summary"], ["mmi_letter", "MMI Letter"],
+  ["outcome_scores", "Outcome Scores"],
+];
+function recordsSection(c) {
+  const byType = Object.fromEntries((c.records || []).map((r) => [r.type, r]));
+  const rows = RECORD_TYPES.map(([type, label]) => {
+    const r = byType[type];
+    const status = r ? r.status : "missing";
+    const ready = r && r.file;
+    let action;
+    if (ready) {
+      action = c.hipaa
+        ? `<button class="rec-btn rec-download" onclick="downloadRecord('${r.id}')">Download</button>`
+        : `<button class="rec-btn rec-download" disabled title="HIPAA release required">Locked</button>`;
+    } else if (IS_STAFF) {
+      action = `<button class="rec-btn rec-upload" onclick="uploadRecord('${c.id}','${type}')">Upload</button>`;
+    } else if (status === "requested" || status === "received") {
+      action = `<span class="rec-wait">${status === "requested" ? "Requested" : "Received — processing"}</span>`;
+    } else {
+      action = `<button class="rec-btn rec-request" onclick="requestRecord('${c.id}','${type}')">Request</button>`;
+    }
+    return `<div class="rec-item">
+      <div class="rec-label">${label}${r && r.filename ? `<div class="rec-file">${r.filename}</div>` : ""}</div>
+      <span class="rec-status rs-${status}">${status}</span>
+      ${action}
+    </div>`;
+  }).join("");
+  const hipaa = c.hipaa
+    ? `<div class="hipaa-line hipaa-ok">✓ HIPAA release on file — records can be released to counsel.</div>`
+    : `<div class="hipaa-line hipaa-no">⚠ No HIPAA release on file — downloads are locked until the signed release is received.</div>`;
+  return `
+    <div class="detail-section">
+      <div class="sec-hdr">Medical Records</div>
+      ${hipaa}
+      ${rows}
+    </div>`;
+}
+
+window.downloadRecord = async (recordId) => {
+  if (LIVE && sb) {
+    try {
+      const { data, error } = await sb.functions.invoke("records-download", { body: { record_id: recordId } });
+      if (error) throw error;
+      if (data?.url) window.open(data.url, "_blank");
+      else throw new Error(data?.error || "no URL returned");
+    } catch (e) { toast("Download blocked: " + (e.message || e)); }
+    return;
+  }
+  toast("Signed URL minted (demo) — 60s expiry, audit row written");
+};
+
+window.requestRecord = async (caseId, type) => {
+  const c = CASES.find((x) => x.id === caseId);
+  if (LIVE && sb) {
+    try {
+      const { error } = await sb.from("records").insert({ case_id: caseId, firm_id: c.firm, record_type: type, status: "requested" });
+      if (error) throw error;
+      await loadData(); selectCase(caseId); toast("Record requested");
+    } catch (e) { toast("Request failed: " + (e.message || e)); }
+    return;
+  }
+  const mc = MOCK.cases.find((x) => x.id === caseId);
+  if (mc) { mc.records = mc.records || []; mc.records.push({ id: "req" + Date.now(), type, status: "requested" }); }
+  CASES = buildMockCases(); renderDetail(); toast("Record requested (demo)");
+};
+
+window.uploadRecord = (caseId, type) => {  // staff, live only
+  const input = document.getElementById("rec-file");
+  input.onchange = async () => {
+    const file = input.files[0]; if (!file) return;
+    const c = CASES.find((x) => x.id === caseId);
+    const path = `${caseId}/${type}-${Date.now()}-${file.name}`;
+    try {
+      const { error: upErr } = await sb.storage.from("medical-records").upload(path, file);
+      if (upErr) throw upErr;
+      const existing = (c.records || []).find((r) => r.type === type);
+      const fields = { storage_key: path, status: "uploaded", filename: file.name, uploaded_at: new Date().toISOString() };
+      const { error } = existing?.id
+        ? await sb.from("records").update(fields).eq("id", existing.id)
+        : await sb.from("records").insert({ case_id: caseId, firm_id: c.firm, provider_id: null, record_type: type, ...fields });
+      if (error) throw error;
+      await loadData(); selectCase(caseId); toast("Record uploaded");
+    } catch (e) { toast("Upload failed: " + (e.message || e)); }
+    input.value = "";
+  };
+  input.click();
+};
+
 function renderDetail() {
   const c = CASES.find((x) => x.id === selectedId);
   const panel = document.getElementById("detail-panel");
@@ -799,6 +941,8 @@ function renderDetail() {
       <div class="math-row"><span class="lbl">Collected to date</span><span class="val">${fmt(c.collected)}</span></div>
       <div class="math-row total"><span class="lbl">Balance outstanding</span><span class="val">${fmt(c.balance)}</span></div>
     </div>
+
+    ${recordsSection(c)}
 
     <div class="detail-section">
       <div class="sec-hdr">Reconcile Payments</div>

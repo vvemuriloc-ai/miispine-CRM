@@ -107,3 +107,12 @@ insert into outreach_log (case_id, firm_id, attorney_id, channel, direction, sub
   ('ca000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'a1111111-0000-0000-0000-000000000001', 'email', 'outbound', 'Status update — Whitfield lien', 'Checking in on settlement posture and the outstanding surgical lien.', true, 'autopilot', now() - interval '20 days', 'no_response'),
   ('ca000000-0000-0000-0000-000000000006', '11111111-1111-1111-1111-111111111111', 'a1111111-0000-0000-0000-000000000002', 'email', 'outbound', 'Delgado — mediation prep', 'Following up ahead of mediation on the reduced lien figure.', true, 'autopilot', now() - interval '45 days', 'update_received')
 on conflict do nothing;
+
+-- Medical records (some uploaded with a storage_key, some requested) -----
+insert into records (case_id, firm_id, provider_id, record_type, status, storage_key, filename, requested_date, received_date, uploaded_at) values
+  ('ca000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'd0000000-0000-0000-0000-000000000001', 'op_report',  'uploaded',  'ca000000-0000-0000-0000-000000000001/op_report.pdf', 'op_report_2025-03.pdf', current_date - 150, current_date - 148, now() - interval '148 days'),
+  ('ca000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'd0000000-0000-0000-0000-000000000002', 'imaging',    'uploaded',  'ca000000-0000-0000-0000-000000000001/mri.pdf',       'mri_lumbar.pdf',        current_date - 205, current_date - 203, now() - interval '203 days'),
+  ('ca000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', null,                                     'mmi_letter', 'requested', null, null, current_date - 10, null, null),
+  ('ca000000-0000-0000-0000-000000000004', '22222222-2222-2222-2222-222222222222', 'd0000000-0000-0000-0000-000000000001', 'op_report',  'uploaded',  'ca000000-0000-0000-0000-000000000004/acdf_op.pdf',   'acdf_op_report.pdf',    current_date - 110, current_date - 108, now() - interval '108 days'),
+  ('ca000000-0000-0000-0000-000000000004', '22222222-2222-2222-2222-222222222222', null,                                     'imaging',    'requested', null, null, current_date - 4, null, null)
+on conflict do nothing;
