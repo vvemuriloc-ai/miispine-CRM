@@ -33,6 +33,7 @@ self-contained, branded web dashboard.
 | `supabase/migrations/0007_staff_and_import.sql` | miiSpine staff role (sees all firms) + `staging_import` / `normalize_import()` for the legacy sheet |
 | `supabase/migrations/0008_lien_reconciliation.sql` | Lien = charges outstanding after PIP/insurance (trigger) + case review flags + `review_queue` |
 | `supabase/migrations/0009_records_access.sql` | Private records bucket, HIPAA-gated RLS, attorney-guard trigger, `case_records` view |
+| `supabase/migrations/0010_invoices.sql` | Collections invoices to the firm — sequential `MII-YYYY-NNNN` numbers, payment ledger rollup, overdue status, staff-only issuance |
 | `supabase/functions/records-download/index.ts` | Mints audited, 60s signed URLs after firm + HIPAA checks |
 | `tools/import_from_xlsx.js` | Extracts the legacy PI AR workbook to a staging CSV (no npm deps) |
 | `supabase/seed.sql` | Demo dataset (2 firms, 6 cases, bills, PIP, milestones) |
@@ -78,6 +79,33 @@ In the dashboard, each case's detail panel has a **Medical Records** section: a
 HIPAA banner, the record checklist with live status, and per-row **Download**
 (attorney, when a file is ready and release is on file), **Request** (attorney,
 when missing), or **Upload** (staff).
+
+## Invoices (collections to the firm)
+
+Once a case is reconciled, miiSpine bills the attorney's firm for the outstanding
+lien. `0010_invoices.sql` adds an `invoices` table and an `invoice_payments`
+ledger:
+
+- **Sequential numbering.** A `BEFORE INSERT` trigger stamps `MII-YYYY-NNNN` from
+  a Postgres sequence (year taken from the issue date), so every invoice has a
+  stable, human-readable number.
+- **Payment rollup drives status.** Recording a payment writes an
+  `invoice_payments` row; an `AFTER` trigger re-sums the ledger onto the invoice
+  and advances `status` (`draft → sent → partial → paid`), stamping `paid_date`
+  when the balance clears and reverting if a payment is removed. `balance_due` is
+  a stored generated column (`amount − amount_paid`).
+- **Overdue is computed, not stored.** `invoices_view` derives `effective_status
+  = 'overdue'` when a `sent`/`partial` invoice is past its due date with a balance
+  — so aging never needs a nightly job to flip a flag.
+- **RLS mirrors records.** Firms **read** their own invoices and payments; only
+  miiSpine staff (`is_staff`) **issue** invoices and **record** payments
+  (`insert`/`update`/`delete` are staff-only). An attorney can see what they owe,
+  never mint or alter an invoice.
+
+In the dashboard, the **Invoices** tab lists every invoice with firm, patient,
+amount, balance, and status; each case's detail panel gains an **Invoices**
+section to issue one straight from the reconciled outstanding lien. The invoice
+detail view records payments, voids, and prints a clean firm-facing copy.
 
 ## Auth & multi-tenancy
 
@@ -198,13 +226,17 @@ that tab falls back to computing from the fetched cases; if the whole load fails
 the dashboard falls back to demo data. With no project configured it stays on the
 embedded demo dataset and never prompts to sign in.
 
-Four tabs:
+Five tabs:
 - **AR Dashboard** — outstanding balances bucketed by case age (0–30 … 180+) per firm.
 - **Cases** — every open case, balance, and miiSpine lien exposure; click for demand math.
 - **Autopilot Queue** — tonight's outreach run, scored highest-priority first.
 - **Needs Review** — cases the import flagged; the detail panel is a reconciliation
   surface (edit charges / PIP / insurance / collected, watch the outstanding lien
   recompute live, then **Mark resolved**). Writes back to Supabase in live mode.
+- **Invoices** — collections invoices to the firm: issue from a case's outstanding
+  lien, record payments, watch the status advance (draft → sent → partial → paid,
+  or **overdue** past the due date), and print. The header badge counts overdue
+  invoices. Writes back to Supabase in live mode.
 
 ## Autopilot follow-up engine
 

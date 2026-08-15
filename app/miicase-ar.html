@@ -79,6 +79,7 @@ body { font-family: 'DM Sans', system-ui, -apple-system, "Segoe UI", Roboto, san
 .rs-received { background: rgba(147,210,195,0.3); color: var(--teal-deep); }
 .rs-requested { background: rgba(212,130,10,0.15); color: var(--yellow); }
 .rs-pending, .rs-missing { background: var(--sand); color: var(--mid); }
+.rs-overdue { background: rgba(192,57,43,0.14); color: var(--red); }
 .rec-btn { padding: 5px 11px; border-radius: 6px; font-family: 'DM Sans', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); white-space: nowrap; }
 .rec-download { background: var(--dark); color: white; border-color: var(--dark); }
 .rec-download:hover { background: var(--orange); border-color: var(--orange); }
@@ -247,6 +248,7 @@ body { font-family: 'DM Sans', system-ui, -apple-system, "Segoe UI", Roboto, san
   <button class="tab-btn" data-tab="cases" onclick="switchTab('cases')">Cases</button>
   <button class="tab-btn" data-tab="autopilot" onclick="switchTab('autopilot')">Autopilot Queue</button>
   <button class="tab-btn" data-tab="review" onclick="switchTab('review')">Needs Review<span class="tab-badge" id="review-badge" style="display:none">0</span></button>
+  <button class="tab-btn" data-tab="invoices" onclick="switchTab('invoices')">Invoices<span class="tab-badge" id="invoice-badge" style="display:none">0</span></button>
 </div>
 
 <div class="main-layout">
@@ -348,6 +350,16 @@ const MOCK = {
       bills: [{ desc: "Imported aggregate charges", prov: "miiSpine Surgery Center", mii: true, billed: 0, pip_paid: 0, ins_paid: 0, collected: 0 }] },
   ],
 };
+
+// Demo invoices (issue/due are day-offsets from today; payments roll up).
+MOCK.invoices = [
+  { id: "inv1", no: "MII-2026-0001", case_id: "c1", amount: 39700, issue_days: 20, due_days: -10, memo: "Outstanding miiSpine lien — Whitfield",
+    payments: [{ amount: 15000, paid_days: 8, method: "check" }] },
+  { id: "inv2", no: "MII-2026-0002", case_id: "c4", amount: 41000, issue_days: 40, due_days: -10, memo: "Outstanding miiSpine lien — Sims",
+    payments: [{ amount: 41000, paid_days: 12, method: "ach" }] },
+  { id: "inv3", no: "MII-2026-0003", case_id: "c6", amount: 22000, issue_days: 5, due_days: 25, memo: "Outstanding miiSpine lien — Delgado",
+    payments: [] },
+];
 
 // ---- Formatting helpers ------------------------------------
 const fmt = (n) => "$" + Math.round(n || 0).toLocaleString();
@@ -472,8 +484,11 @@ let QUEUE = null;      // autopilot_queue view rows (live) or null (demo → com
 let LIVE = false;
 let IS_STAFF = false;   // miiSpine staff (upload) vs attorney (request), from the JWT
 const decodeClaim = (jwt, key) => { try { return JSON.parse(atob(jwt.split(".")[1]))[key]; } catch { return undefined; } };
+let INVOICES = [];
 let selectedId = null;
+let selectedInvoice = null;
 let activeTab = "dashboard";
+const isoDays = (d) => { const t = new Date(); t.setDate(t.getDate() + d); return t.toISOString().slice(0, 10); };
 
 // ============================================================
 // Auth + data source: live Supabase if configured, else demo
@@ -495,7 +510,7 @@ async function loadData() {
 
   // No project configured → embedded demo dataset, no login.
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    LIVE = false; AR_AGING = null; QUEUE = null; CASES = buildMockCases();
+    LIVE = false; AR_AGING = null; QUEUE = null; CASES = buildMockCases(); INVOICES = buildMockInvoices();
     hideLogin(); setSignoutVisible(false);
     dot.className = "sync-dot demo"; label.textContent = "Demo data";
     renderHeaderStats(); render();
@@ -527,16 +542,18 @@ async function loadData() {
   try {
     // Cases (with embeds for the detail math) + the two views, in parallel.
     // RLS scopes everything to the session's firm_id claim.
-    const [casesRes, agingRes, queueRes] = await Promise.all([
+    const [casesRes, agingRes, queueRes, invRes] = await Promise.all([
       client.from("cases").select(CASE_SELECT),
       client.from("ar_aging").select("*"),
       client.from("autopilot_queue").select("*"),
+      client.from("invoices").select(INVOICE_SELECT),
     ]);
     if (casesRes.error) throw casesRes.error;
 
     CASES = (casesRes.data || []).map(mapCaseRow);
     AR_AGING = agingRes.error ? null : agingRes.data;   // fall back to computed if a view read fails
     QUEUE = queueRes.error ? null : queueRes.data;
+    INVOICES = invRes.error ? [] : (invRes.data || []).map(mapInvoiceRow);
     LIVE = true;
 
     dot.className = "sync-dot ok";
@@ -599,6 +616,10 @@ function renderHeaderStats() {
   const badge = document.getElementById("review-badge");
   badge.textContent = rc;
   badge.style.display = rc ? "" : "none";
+  const overdue = INVOICES.filter((i) => i.status === "overdue").length;
+  const ib = document.getElementById("invoice-badge");
+  ib.textContent = overdue;
+  ib.style.display = overdue ? "" : "none";
 }
 
 // ============================================================
@@ -616,8 +637,10 @@ function render() {
   else if (activeTab === "cases") el.innerHTML = renderCases();
   else if (activeTab === "autopilot") el.innerHTML = renderAutopilot();
   else if (activeTab === "review") el.innerHTML = renderReview();
+  else if (activeTab === "invoices") el.innerHTML = renderInvoices();
   // reselect highlight
   document.querySelectorAll("tr[data-case]").forEach((r) => r.classList.toggle("selected", r.dataset.case === selectedId));
+  document.querySelectorAll("tr[data-inv]").forEach((r) => r.classList.toggle("selected", r.dataset.inv === selectedInvoice));
 }
 
 const REASON_LABEL = {
@@ -899,185 +922,261 @@ window.uploadRecord = (caseId, type) => {  // staff, live only
   input.click();
 };
 
-function renderDetail() {
-  const c = CASES.find((x) => x.id === selectedId);
+// ============================================================
+// Invoices — miiSpine collections invoices to the firm
+// ============================================================
+const INVOICE_SELECT = `
+  id, invoice_no, case_id, firm_id, amount, amount_paid, balance_due, status, issue_date, due_date, paid_date, memo,
+  case:cases(claim_number, client:clients(first_name, last_name)),
+  firm:firms(name),
+  invoice_payments(amount, paid_on, method, note)
+`;
+const INV_ORDER = { overdue: 0, partial: 1, sent: 2, draft: 3, paid: 4, void: 5 };
+const INV_STATUS_CLS = { draft: "rs-pending", sent: "rs-received", partial: "rs-requested", paid: "rs-uploaded", overdue: "rs-overdue", void: "rs-missing" };
+
+function effInvStatus(raw, amount, paid, dueStr) {
+  if (raw === "void") return "void";
+  if (amount > 0 && paid >= amount) return "paid";
+  const today = new Date(new Date().toDateString());
+  if (dueStr && new Date(dueStr) < today && amount - paid > 0 && (raw === "sent" || raw === "partial")) return "overdue";
+  if (paid > 0) return "partial";
+  return raw;
+}
+
+function buildMockInvoices() {
+  return (MOCK.invoices || []).map((iv) => {
+    const c = CASES.find((x) => x.id === iv.case_id);
+    const paid = (iv.payments || []).reduce((s, p) => s + p.amount, 0);
+    const due = isoDays(iv.due_days);
+    const raw = paid <= 0 ? "sent" : paid >= iv.amount ? "paid" : "partial";
+    return {
+      id: iv.id, no: iv.no, case_id: iv.case_id, firm: c ? c.firm : null,
+      patient: c ? c.patient : "—", firmName: c ? c.firmName : "—",
+      amount: iv.amount, amount_paid: paid, balance_due: Math.max(0, iv.amount - paid),
+      status: effInvStatus(raw, iv.amount, paid, due),
+      issue_date: isoDays(-iv.issue_days), due_date: due, memo: iv.memo,
+      payments: (iv.payments || []).map((p) => ({ amount: p.amount, paid_on: isoDays(-p.paid_days), method: p.method })),
+    };
+  });
+}
+
+function mapInvoiceRow(row) {
+  const caseRow = firstOf(row.case) || {};
+  const cl = firstOf(caseRow.client) || {};
+  const firm = firstOf(row.firm) || {};
+  const patient = `${cl.first_name || ""} ${cl.last_name ? cl.last_name.charAt(0) + "." : ""}`.trim() || "—";
+  const amount = +row.amount || 0, paid = +row.amount_paid || 0;
+  return {
+    id: row.id, no: row.invoice_no, case_id: row.case_id, firm: row.firm_id,
+    patient, firmName: firm.name || "—",
+    amount, amount_paid: paid, balance_due: row.balance_due != null ? +row.balance_due : Math.max(0, amount - paid),
+    status: effInvStatus(row.status, amount, paid, row.due_date),
+    issue_date: row.issue_date, due_date: row.due_date, memo: row.memo,
+    payments: (row.invoice_payments || []).map((p) => ({ amount: +p.amount, paid_on: p.paid_on, method: p.method })),
+  };
+}
+
+async function refreshInvoices() {
+  if (LIVE && sb) {
+    const { data, error } = await sb.from("invoices").select(INVOICE_SELECT);
+    INVOICES = error ? INVOICES : (data || []).map(mapInvoiceRow);
+  } else {
+    INVOICES = buildMockInvoices();
+  }
+  renderHeaderStats();
+  if (activeTab === "invoices") render();
+  if (selectedInvoice) renderInvoiceDetail();
+}
+
+function renderInvoices() {
+  const list = INVOICES.slice().sort((a, b) => (INV_ORDER[a.status] - INV_ORDER[b.status]) || b.balance_due - a.balance_due);
+  const outstanding = INVOICES.filter((i) => !["void", "paid"].includes(i.status)).reduce((s, i) => s + i.balance_due, 0);
+  const overdue = INVOICES.filter((i) => i.status === "overdue").reduce((s, i) => s + i.balance_due, 0);
+  const collected = INVOICES.reduce((s, i) => s + i.amount_paid, 0);
+
+  const cards = `<div class="card-row">
+    <div class="card"><div class="card-label">Outstanding Invoiced</div><div class="card-num accent">${fmt(outstanding)}</div><div class="card-sub">${INVOICES.filter((i)=>!["void","paid"].includes(i.status)).length} open invoices</div></div>
+    <div class="card"><div class="card-label">Overdue</div><div class="card-num" style="color:var(--red)">${fmt(overdue)}</div><div class="card-sub">past due date</div></div>
+    <div class="card"><div class="card-label">Collected</div><div class="card-num good">${fmt(collected)}</div><div class="card-sub">received to date</div></div>
+  </div>`;
+
+  if (!list.length) {
+    return `<div class="section-title">Invoices</div>
+      <div class="section-sub">Collections invoices issued to firms for outstanding liens.</div>${cards}
+      <div class="empty-state">No invoices yet — open a case and use <strong>Issue invoice</strong>${IS_STAFF || !LIVE ? "" : " (staff only)"}.</div>`;
+  }
+  const rows = list.map((i) => `
+    <tr data-inv="${i.id}" onclick="selectInvoice('${i.id}')">
+      <td><div class="name-primary">${i.no || "—"}</div><div class="name-sub">${i.issue_date || ""}</div></td>
+      <td>${i.patient}<div class="name-sub">${i.firmName}</div></td>
+      <td class="right num">${fmt(i.amount)}</td>
+      <td class="right num">${fmt(i.balance_due)}</td>
+      <td><span class="rec-status ${INV_STATUS_CLS[i.status] || "rs-pending"}">${i.status}</span></td>
+      <td class="num">${i.due_date || "—"}</td>
+    </tr>`).join("");
+  return `<div class="section-title">Invoices</div>
+    <div class="section-sub">Collections invoices issued to firms for outstanding liens. Overdue first.</div>${cards}
+    <div class="table-wrap"><table class="ar-table">
+      <thead><tr><th>Invoice</th><th>Patient / Firm</th><th class="right">Amount</th><th class="right">Balance Due</th><th>Status</th><th>Due</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+}
+
+window.selectInvoice = (id) => {
+  selectedInvoice = id; selectedId = null;
+  document.querySelectorAll("tr[data-inv]").forEach((r) => r.classList.toggle("selected", r.dataset.inv === id));
+  renderInvoiceDetail();
+};
+
+function renderInvoiceDetail() {
+  const i = INVOICES.find((x) => x.id === selectedInvoice);
   const panel = document.getElementById("detail-panel");
-  if (!c) { panel.innerHTML = `<div class="detail-empty"><div class="empty-icon">←</div><p>Select a case.</p></div>`; return; }
-
-  const flagged = c.reviewStatus === "needs_review";
-  // Reconciliation targets miiSpine's bill (the lien we collect on).
-  const tb = c.bills.find((b) => b.mii) || c.bills[0] || { billed: 0, pip_paid: 0, ins_paid: 0, collected: 0 };
-  const otherLien = c.bills.filter((b) => b !== tb).reduce((s, b) => s + billLien(b), 0);
-  const otherCollected = c.bills.filter((b) => b !== tb).reduce((s, b) => s + b.collected, 0);
-  reconCtx = { caseId: c.id, tb, otherLien, otherCollected };
-
-  const bills = c.bills.map((b) => `
-    <div class="bill-item">
-      <div><div class="bill-desc">${b.desc}${b.mii ? '<span class="mii-tag">miiSpine</span>' : ""}</div><div class="bill-prov">${b.prov}</div></div>
-      <div class="bill-amt">${fmt(b.billed)}${billLien(b) ? `<div class="bill-prov">lien ${fmt(billLien(b))}</div>` : ""}</div>
-    </div>`).join("");
+  if (!i) { panel.innerHTML = `<div class="detail-empty"><div class="empty-icon">←</div><p>Select an invoice.</p></div>`; return; }
+  const staff = IS_STAFF || !LIVE;
+  const ledger = i.payments.length
+    ? i.payments.map((p) => `<div class="math-row"><span class="lbl">${p.paid_on || ""} · ${p.method || "payment"}</span><span class="val">${fmt(p.amount)}</span></div>`).join("")
+    : `<p style="font-size:12px;color:var(--mid)">No payments recorded.</p>`;
 
   panel.innerHTML = `
     <div class="detail-header">
-      <span class="badge pri-${c.priority}">${c.priority}</span>
-      <div class="detail-name">${c.patient}</div>
+      <span class="rec-status ${INV_STATUS_CLS[i.status] || "rs-pending"}">${i.status}</span>
+      <div class="detail-name">${i.no || "Invoice"}</div>
       <div class="detail-meta">
-        <div class="dm-row"><span class="dml">Claim</span><span class="dmv">${c.claim || "—"}</span></div>
-        <div class="dm-row"><span class="dml">Firm</span><span class="dmv">${c.firmName}</span></div>
-        <div class="dm-row"><span class="dml">Status</span><span class="dmv">${c.status.replace(/_/g, " ")}</span></div>
-        <div class="dm-row"><span class="dml">PIP</span><span class="dmv">${c.pip.status} · ${fmt(c.pip.remaining)} left</span></div>
+        <div class="dm-row"><span class="dml">Bill to</span><span class="dmv">${i.firmName}</span></div>
+        <div class="dm-row"><span class="dml">Patient</span><span class="dmv">${i.patient}</span></div>
+        <div class="dm-row"><span class="dml">Issued</span><span class="dmv">${i.issue_date || "—"}</span></div>
+        <div class="dm-row"><span class="dml">Due</span><span class="dmv">${i.due_date || "—"}</span></div>
       </div>
     </div>
-    ${flagged ? `<div class="review-banner">⚑ <strong>Needs review:</strong><span class="review-reason">${reasonChips(c.reviewReason)}</span></div>` : ""}
-
     <div class="detail-section">
-      <div class="sec-hdr">Demand Math</div>
-      <div class="math-row"><span class="lbl">Total billed (specials)</span><span class="val">${fmt(c.totalBilled)}</span></div>
-      <div class="math-row deduct"><span class="lbl">− PIP paid</span><span class="val">−${fmt(c.pipPaid)}</span></div>
-      <div class="math-row deduct"><span class="lbl">− Insurance paid</span><span class="val">−${fmt(c.insPaid)}</span></div>
-      <div class="math-row subtotal"><span class="lbl">Net specials</span><span class="val">${fmt(c.netSpecials)}</span></div>
-      <div class="math-row"><span class="lbl">miiSpine lien (after PIP)</span><span class="val">${fmt(c.miispineLien)}</span></div>
-      <div class="math-row"><span class="lbl">Other liens</span><span class="val">${fmt(c.otherLiens)}</span></div>
-      <div class="math-row"><span class="lbl">Collected to date</span><span class="val">${fmt(c.collected)}</span></div>
-      <div class="math-row total"><span class="lbl">Balance outstanding</span><span class="val">${fmt(c.balance)}</span></div>
+      <div class="sec-hdr">Invoice</div>
+      <div class="math-row"><span class="lbl">${i.memo || "Outstanding miiSpine lien"}</span><span class="val">${fmt(i.amount)}</span></div>
+      <div class="math-row deduct"><span class="lbl">− Payments</span><span class="val">−${fmt(i.amount_paid)}</span></div>
+      <div class="math-row total"><span class="lbl">Balance due</span><span class="val">${fmt(i.balance_due)}</span></div>
+      <div class="recon-actions"><button class="btn-save" onclick="printInvoice('${i.id}')" style="background:var(--dark)">View / Print</button></div>
     </div>
-
-    ${recordsSection(c)}
-
     <div class="detail-section">
-      <div class="sec-hdr">Reconcile Payments</div>
+      <div class="sec-hdr">Payment Ledger</div>
+      ${ledger}
+    </div>
+    ${staff && i.status !== "void" ? `
+    <div class="detail-section">
+      <div class="sec-hdr">Record Payment</div>
       <div class="recon-grid">
-        <div class="recon-field"><label>Charges (billed)</label><input type="number" step="0.01" id="recon-billed" value="${tb.billed}" oninput="reconPreview()"></div>
-        <div class="recon-field"><label>Status</label><select id="recon-status">${CASE_STATUSES.map((s) => `<option value="${s}" ${s === c.status ? "selected" : ""}>${s.replace(/_/g, " ")}</option>`).join("")}</select></div>
-        <div class="recon-field"><label>PIP paid → miiSpine</label><input type="number" step="0.01" id="recon-pip" value="${tb.pip_paid}" oninput="reconPreview()"></div>
-        <div class="recon-field"><label>Insurance paid</label><input type="number" step="0.01" id="recon-ins" value="${tb.ins_paid}" oninput="reconPreview()"></div>
-        <div class="recon-field full"><label>Collected (settlement)</label><input type="number" step="0.01" id="recon-col" value="${tb.collected}" oninput="reconPreview()"></div>
-      </div>
-      <div class="recon-out">
-        <div class="ro-row"><span>Outstanding lien (charges − PIP − insurance)</span><span class="v" id="ro-lien">${fmt(billLien(tb))}</span></div>
-        <div class="ro-row total"><span>Balance outstanding</span><span class="v" id="ro-balance">${fmt(c.balance)}</span></div>
+        <div class="recon-field"><label>Amount</label><input type="number" step="0.01" id="pay-amount" placeholder="0.00"></div>
+        <div class="recon-field"><label>Method</label><select id="pay-method"><option value="check">Check</option><option value="ach">ACH</option><option value="card">Card</option><option value="wire">Wire</option><option value="other">Other</option></select></div>
       </div>
       <div class="recon-actions">
-        <button class="btn-save" onclick="saveReconcile()">Save reconciliation</button>
-        ${flagged ? `<button class="btn-resolve" onclick="resolveReview()">Mark resolved</button>` : ""}
+        <button class="btn-save" onclick="recordPayment('${i.id}')">Record payment</button>
+        <button class="btn-resolve" style="color:var(--red);border-color:var(--red)" onclick="voidInvoice('${i.id}')">Void</button>
       </div>
-    </div>
-
-    <div class="detail-section">
-      <div class="sec-hdr">Medical Bills (${c.bills.length})</div>
-      ${bills}
-    </div>
-
-    <div class="detail-section">
-      <div class="sec-hdr" style="display:flex;justify-content:space-between;align-items:center">Autopilot Draft
-        <button class="draft-btn" id="draft-btn" onclick="draftEmail('${c.id}')">Generate</button></div>
-      <div id="draft-out"><p style="font-size:12px;color:var(--mid)">Generate a professional follow-up email for the attorney.</p></div>
-    </div>`;
+    </div>` : ""}`;
 }
 
-// Live preview of the reconciliation math as staff type.
-window.reconPreview = () => {
-  if (!reconCtx) return;
-  const billed = +document.getElementById("recon-billed").value || 0;
-  const pip = +document.getElementById("recon-pip").value || 0;
-  const ins = +document.getElementById("recon-ins").value || 0;
-  const col = +document.getElementById("recon-col").value || 0;
-  const tbLien = Math.max(0, billed - pip - ins);
-  const totalLien = tbLien + reconCtx.otherLien;
-  const balance = Math.max(0, totalLien - (col + reconCtx.otherCollected));
-  document.getElementById("ro-lien").textContent = fmt(tbLien);
-  document.getElementById("ro-balance").textContent = fmt(balance);
-};
+function invoicesForCase(caseId) { return INVOICES.filter((i) => i.case_id === caseId); }
 
-// Persist reconciliation: mutate the miiSpine bill + case status.
-window.saveReconcile = async () => {
-  if (!reconCtx) return;
-  const tb = reconCtx.tb;
-  const billed = +document.getElementById("recon-billed").value || 0;
-  const pip = +document.getElementById("recon-pip").value || 0;
-  const ins = +document.getElementById("recon-ins").value || 0;
-  const col = +document.getElementById("recon-col").value || 0;
-  const status = document.getElementById("recon-status").value;
-
-  if (LIVE && sb) {
-    try {
-      if (tb.id) {
-        const { error } = await sb.from("medical_bills")
-          .update({ billed_amount: billed, pip_paid: pip, insurance_paid: ins, collected_amount: col })
-          .eq("id", tb.id);
-        if (error) throw error;
-      }
-      const { error: e2 } = await sb.from("cases").update({ status }).eq("id", reconCtx.caseId);
-      if (e2) throw e2;
-      await loadData();
-      selectCase(reconCtx.caseId);
-      toast("Reconciliation saved");
-    } catch (e) { toast("Save failed: " + (e.message || e)); }
-    return;
-  }
-  // Demo: mutate the underlying bill + status, re-derive.
-  tb.billed = billed; tb.pip_paid = pip; tb.ins_paid = ins; tb.collected = col;
-  const mc = MOCK.cases.find((x) => x.id === reconCtx.caseId);
-  if (mc) mc.status = status;
-  CASES = buildMockCases();
-  renderHeaderStats(); render(); renderDetail();
-  toast("Reconciliation saved (demo)");
-};
-
-// Clear the review flag once a case is fixed.
-window.resolveReview = async () => {
-  if (!reconCtx) return;
-  const id = reconCtx.caseId;
-  if (LIVE && sb) {
-    try {
-      const { error } = await sb.from("cases").update({ review_status: "resolved" }).eq("id", id);
-      if (error) throw error;
-      await loadData(); selectCase(id); toast("Marked resolved");
-    } catch (e) { toast("Failed: " + (e.message || e)); }
-    return;
-  }
-  const mc = MOCK.cases.find((x) => x.id === id);
-  if (mc) mc.review = { status: "resolved", reason: null };
-  CASES = buildMockCases();
-  renderHeaderStats(); if (activeTab === "review") render(); renderDetail();
-  toast("Marked resolved (demo)");
-};
-
-// Small toast helper.
-let toastTimer = null;
-function toast(msg) {
-  const t = document.getElementById("toast");
-  t.textContent = msg; t.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+function caseInvoicesSection(c) {
+  const list = invoicesForCase(c.id);
+  const staff = IS_STAFF || !LIVE;
+  const items = list.length
+    ? list.map((i) => `
+      <div class="rec-item">
+        <div class="rec-label">${i.no || "invoice"}<div class="rec-file">${fmt(i.amount)} · due ${i.due_date || "—"}</div></div>
+        <span class="rec-status ${INV_STATUS_CLS[i.status] || "rs-pending"}">${i.status}</span>
+        <button class="rec-btn rec-download" onclick="selectInvoiceFromCase('${i.id}')">Open</button>
+      </div>`).join("")
+    : `<p style="font-size:12px;color:var(--mid)">No invoices for this case.</p>`;
+  const issue = staff && c.balance > 0
+    ? `<button class="rec-btn rec-request" onclick="issueInvoice('${c.id}')">Issue · ${fmt(c.balance)}</button>` : "";
+  return `<div class="detail-section">
+    <div class="sec-hdr" style="display:flex;justify-content:space-between;align-items:center">Invoices ${issue}</div>
+    ${items}</div>`;
 }
 
-// Preview of the autopilot outreach (templated; the live function uses Claude).
-window.draftEmail = (id) => {
-  const c = CASES.find((x) => x.id === id);
+window.selectInvoiceFromCase = (id) => { switchTab("invoices"); selectInvoice(id); };
+
+window.issueInvoice = async (caseId) => {
+  const c = CASES.find((x) => x.id === caseId);
   if (!c) return;
-  const btn = document.getElementById("draft-btn");
-  btn.disabled = true; btn.textContent = "Drafting…";
-  setTimeout(() => {
-    const lastName = c.patient.split(" ").slice(-1)[0].replace(".", "");
-    const subject = `${c.claim} — ${c.patient} · miiSpine balance ${fmt(c.balance)}`;
-    const milestone = c.milestone ? `following the recent ${c.milestone.type.replace(/_/g, " ")}` : "as treatment progresses";
-    const body =
-`Dear ${c.atty.name.split(" ")[0]},
-
-I'm following up on ${c.patient} (claim ${c.claim}) ${milestone}. miiSpine currently has an outstanding lien balance of ${fmt(c.balance)} on this matter, with PIP ${c.pip.status}.
-
-Could you share the current status of the case and any expected timeline for resolution? We're glad to provide updated records or an itemized statement to keep things moving.
-
-Thank you,
-miiSpine Billing`;
-    document.getElementById("draft-out").innerHTML = `
-      <div class="email-subject"><span>Subject</span>${subject}</div>
-      <div class="email-body">${body}</div>`;
-    btn.disabled = false; btn.textContent = "Regenerate";
-  }, 500);
+  const amount = Math.round(c.balance * 100) / 100;
+  if (amount <= 0) { toast("No outstanding balance to invoice"); return; }
+  const memo = `Outstanding miiSpine lien — ${c.patient}`;
+  if (LIVE && sb) {
+    try {
+      const { error } = await sb.from("invoices").insert({
+        case_id: caseId, firm_id: c.firm, amount, status: "sent",
+        issue_date: isoDays(0), due_date: isoDays(30), memo,
+      });
+      if (error) throw error;
+      await refreshInvoices(); renderDetail(); toast("Invoice issued");
+    } catch (e) { toast("Issue failed: " + (e.message || e)); }
+    return;
+  }
+  const n = (MOCK.invoices.length + 1).toString().padStart(4, "0");
+  MOCK.invoices.push({ id: "inv" + Date.now(), no: "MII-2026-" + n, case_id: caseId, amount, issue_days: 0, due_days: 30, memo, payments: [] });
+  INVOICES = buildMockInvoices(); renderHeaderStats(); renderDetail(); toast("Invoice issued (demo)");
 };
 
-// ============================================================
-loadData();
-</script>
+window.recordPayment = async (invId) => {
+  const inv = INVOICES.find((x) => x.id === invId);
+  const amount = +document.getElementById("pay-amount").value || 0;
+  const method = document.getElementById("pay-method").value;
+  if (amount <= 0) { toast("Enter a payment amount"); return; }
+  if (LIVE && sb) {
+    try {
+      const { error } = await sb.from("invoice_payments").insert({ invoice_id: invId, firm_id: inv.firm, amount, method, paid_on: isoDays(0) });
+      if (error) throw error;
+      await refreshInvoices(); toast("Payment recorded");
+    } catch (e) { toast("Payment failed: " + (e.message || e)); }
+    return;
+  }
+  const mi = MOCK.invoices.find((x) => x.id === invId);
+  if (mi) { mi.payments = mi.payments || []; mi.payments.push({ amount, paid_days: 0, method }); }
+  INVOICES = buildMockInvoices(); renderHeaderStats(); renderInvoiceDetail(); if (activeTab === "invoices") render(); toast("Payment recorded (demo)");
+};
+
+window.voidInvoice = async (invId) => {
+  const inv = INVOICES.find((x) => x.id === invId);
+  if (LIVE && sb) {
+    try {
+      const { error } = await sb.from("invoices").update({ status: "void" }).eq("id", invId);
+      if (error) throw error;
+      await refreshInvoices(); toast("Invoice voided");
+    } catch (e) { toast("Void failed: " + (e.message || e)); }
+    return;
+  }
+  const mi = MOCK.invoices.find((x) => x.id === invId);
+  if (mi) mi.voided = true;
+  // demo: mark void by emptying + flag via status override
+  INVOICES = INVOICES.map((x) => x.id === invId ? { ...x, status: "void" } : x);
+  renderHeaderStats(); renderInvoiceDetail(); if (activeTab === "invoices") render(); toast("Invoice voided (demo)");
+};
+
+window.printInvoice = (invId) => {
+  const i = INVOICES.find((x) => x.id === invId);
+  if (!i) return;
+  const rows = i.payments.map((p) => `<tr><td>${p.paid_on || ""}</td><td>${p.method || ""}</td><td style="text-align:right">${fmt(p.amount)}</td></tr>`).join("");
+  const w = window.open("", "_blank", "width=760,height=900");
+  if (!w) { toast("Allow pop-ups to print"); return; }
+  w.document.write(`<!doctype html><html><head><title>${i.no}</title><style>
+    body{font-family:Georgia,serif;color:#1A1410;max-width:660px;margin:40px auto;padding:0 24px}
+    .hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #F04E23;padding-bottom:16px}
+    .brand{font-size:24px;font-weight:700}.brand span{color:#F04E23}
+    h1{font-size:20px;margin:24px 0 4px}.muted{color:#5C4A3D;font-size:13px}
+    table{width:100%;border-collapse:collapse;margin-top:20px;font-size:14px}
+    th,td{padding:8px 6px;border-bottom:1px solid #D9CEC9;text-align:left}
+    .tot{margin-top:22px;width:100%;font-size:15px}.tot td{padding:6px 0}.tot .g{text-align:right}
+    .due{font-weight:700;color:#F04E23;font-size:18px;border-top:2px solid #1A1410}
+    .sub{font-size:12px;color:#5C4A3D;margin-top:34px}
+  </style></head><body>
+    <div class="hd"><div class="brand">mii<span>Spine</span> Billing</div>
+      <div style="text-align:right"><div style="font-weight:700">${i.no}</div><div class="muted">Issued ${i.issue_date || ""}<br>Due ${i.due_date || ""}</div></div></div>
+    <h1>Statement of Outstanding Lien</h1>
+    <div class="muted">Bill to: <strong>${i.firmName}</strong> · Patient: ${i.patient}</div>
+    <table><thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
+      <tbody><tr><td>${i.memo || "Outstanding miiSpine lien (charges net of PIP &amp; insurance)"}</td><td style="text-align:right">${fmt(i.amount)}</td></tr></tbody></table>
+    ${i.payments.length ? `<table><thead><tr><th>Payment date</th><th>Method</th><th style="text-align:right">Amount</th></tr></thead><tbody>${rows}</tbody></table>` : ""}
+    <table class="tot"><tr><td>Invoiced</td><td class="g">${fmt(i.amount)}</td></tr>
+      <tr><td>Payments received</td><td class="g">−${fmt(i.amount_paid)}</td></tr>
+      <tr class="due"><td>Balance due</td><td class="g">${fmt(i.balance_due)}</td></tr></table>
+    <div class="sub">Remit to miiSpine Billing · billing@miispine.com · Louisville, KY. This statement reflects the lien balance outstanding after PIP and health-insurance credits.</div>
+  
