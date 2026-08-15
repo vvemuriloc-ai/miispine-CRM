@@ -31,6 +31,7 @@ self-contained, branded web dashboard.
 | `supabase/migrations/0005_cron.sql` | Nightly pg_cron schedule for the autopilot function |
 | `supabase/migrations/0006_auth.sql` | `user_profiles` mapping + access-token hook that stamps `firm_id` into the JWT |
 | `supabase/migrations/0007_staff_and_import.sql` | miiSpine staff role (sees all firms) + `staging_import` / `normalize_import()` for the legacy sheet |
+| `supabase/migrations/0008_lien_reconciliation.sql` | Lien = charges outstanding after PIP/insurance (trigger) + case review flags + `review_queue` |
 | `tools/import_from_xlsx.js` | Extracts the legacy PI AR workbook to a staging CSV (no npm deps) |
 | `supabase/seed.sql` | Demo dataset (2 firms, 6 cases, bills, PIP, milestones) |
 | `supabase/functions/autopilot/index.ts` | The nightly follow-up engine |
@@ -42,6 +43,11 @@ self-contained, branded web dashboard.
 - **`cases`** is the central record. `balance_outstanding` is a stored generated
   column (`total_lien - total_collected`); the other AR totals are denormalized
   for fast dashboards and kept in sync by triggers from `medical_bills`.
+- **Lien = outstanding after payments** (`0008`): a bill's `lien_amount` is the
+  charges still owed after PIP and insurance —
+  `max(0, billed − pip_paid − insurance_paid)` — maintained by a trigger (opt out
+  with `lien_manual` for a negotiated lien). So the imported book starts as gross
+  charges and the outstanding lien drops as staff reconcile payments in the app.
 - **`collateral_calc`** is a live demand-math snapshot (net specials, tiered
   miiSpine lien, other liens) refreshed automatically on any bill change.
 - **`pip_ledger`** tracks Kentucky $10K PIP availability, incl. post-July-2026
@@ -168,10 +174,13 @@ that tab falls back to computing from the fetched cases; if the whole load fails
 the dashboard falls back to demo data. With no project configured it stays on the
 embedded demo dataset and never prompts to sign in.
 
-Three tabs:
+Four tabs:
 - **AR Dashboard** — outstanding balances bucketed by case age (0–30 … 180+) per firm.
 - **Cases** — every open case, balance, and miiSpine lien exposure; click for demand math.
 - **Autopilot Queue** — tonight's outreach run, scored highest-priority first.
+- **Needs Review** — cases the import flagged; the detail panel is a reconciliation
+  surface (edit charges / PIP / insurance / collected, watch the outstanding lien
+  recompute live, then **Mark resolved**). Writes back to Supabase in live mode.
 
 ## Autopilot follow-up engine
 
