@@ -11,6 +11,9 @@ verify_jwt = false   # invoked by pg_cron / scheduler, not end users
 [functions.records-download]
 verify_jwt = true    # attorney/staff only — gates on the caller's JWT + firm RLS
 
+[functions.modmed-sync]
+verify_jwt = false   # invoked by the scheduler, not end users; holds ModMed secrets
+
 [auth]
 enabled = true
 

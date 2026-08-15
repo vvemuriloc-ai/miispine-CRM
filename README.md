@@ -8,15 +8,16 @@ self-contained, branded web dashboard.
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  app/index.html   ── branded single-file dashboard (Supabase JS)
-│        │  reads ar_aging / autopilot_queue / cases (RLS)
+│        │  reads ar_aging / autopilot_queue / cases / invoices (RLS)
 │        ▼
-│  Postgres  ── 15 tables · firm-isolation RLS · AR rollup triggers
-│        ▲
-│        │  service_role (bypasses RLS)
-│  supabase/functions/autopilot  ── nightly: score → draft (Claude) →
-│                                    send (SendGrid) → log → reschedule
-│        ▲
-│  pg_cron 06:00 UTC nightly (0005_cron.sql)
+│  Postgres  ── 22 tables · firm-isolation RLS · AR rollup triggers
+│        ▲                              ▲
+│        │ service_role (bypasses RLS)  │ reconcile_emr()
+│  functions/autopilot  ── nightly:     │  functions/modmed-sync ── nightly:
+│    score → draft (Claude) →           │    GET ModMed FHIR charges + payments
+│    send (SendGrid) → log → reschedule │    → stage → reconcile bills/liens (read-only)
+│        ▲                              ▲
+│  pg_cron 06:00 UTC (0005)        pg_cron 05:30 UTC (0012)
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -34,6 +35,9 @@ self-contained, branded web dashboard.
 | `supabase/migrations/0008_lien_reconciliation.sql` | Lien = charges outstanding after PIP/insurance (trigger) + case review flags + `review_queue` |
 | `supabase/migrations/0009_records_access.sql` | Private records bucket, HIPAA-gated RLS, attorney-guard trigger, `case_records` view |
 | `supabase/migrations/0010_invoices.sql` | Collections invoices to the firm — sequential `MII-YYYY-NNNN` numbers, payment ledger rollup, overdue status, staff-only issuance |
+| `supabase/migrations/0011_modmed_sync.sql` | ModMed EMR sync landing tables + `reconcile_emr()` — charges → bills (idempotent), payment waterfall, staff-only RLS |
+| `supabase/migrations/0012_modmed_cron.sql` | Nightly pg_cron schedule for the read-only ModMed AR pull |
+| `supabase/functions/modmed-sync/` | Read-only FHIR broker: pulls ModMed charges + payments into the covered DB (`index.ts`) with a tested pure-mapping module (`fhir.js`) |
 | `supabase/functions/records-download/index.ts` | Mints audited, 60s signed URLs after firm + HIPAA checks |
 | `tools/import_from_xlsx.js` | Extracts the legacy PI AR workbook to a staging CSV (no npm deps) |
 | `supabase/seed.sql` | Demo dataset (2 firms, 6 cases, bills, PIP, milestones) |
@@ -170,6 +174,73 @@ importer: near-duplicate patients that carry different claim numbers, and firm
 strings that bundle an individual attorney name (`Pittenger Law Office, PLLC -
 Daniel Sullivan`) — the same firm, different attorney, which is where the
 firm/attorney split gets untangled by hand.
+
+## ModMed EMR sync (live, read-only)
+
+The spreadsheet import above is the one-time cutover; the ongoing source of
+truth is miiSpine's EMR, **ModMed**. Charges live on the Practice-Management
+(PM) side and clinical notes on EMA. `0011_modmed_sync.sql` +
+`supabase/functions/modmed-sync` pull the **AR side (charges + payments) live and
+read-only** over ModMed's FHIR API, so the outstanding lien stops being a typed
+figure and becomes reconciled from the billing system every night.
+
+```
+ModMed FHIR  ──GET ChargeItem / Invoice / PaymentReconciliation (paged)──┐
+  (x-api-key + OAuth2 bearer, held only by the edge function)            │
+                                                                         ▼
+        emr_charge_staging / emr_payment_staging  ──reconcile_emr(run)──▶ medical_bills
+                                                                         │  (dedup on
+                                    lien + AR triggers recompute ◀───────┘   emr_charge_id)
+```
+
+**Why it's safe with live PHI:**
+
+- The ModMed credentials — the `x-api-key` plus the OAuth2 password-grant that
+  mints the bearer token — live **only in the `modmed-sync` function's secrets**.
+  They never reach the browser and never leave the function. The function only
+  ever **GET**s from ModMed (plus the token POST); it never writes to the EMR.
+- Everything pulled lands in the **covered Supabase DB** (needs your Supabase
+  BAA; ModMed is already your EMR business associate). No PHI is routed through
+  Claude or any non-BAA'd service.
+- The sync tables are **miiSpine-staff-only** under RLS; attorneys never see the
+  EMR plumbing, only the reconciled bills on their own cases.
+
+**How reconcile works (`reconcile_emr`):**
+
+- **Charges → bills, idempotent.** Each ModMed `ChargeItem` (priced from the
+  item or a matching `Invoice` line) upserts into `medical_bills` keyed on
+  `emr_charge_id`, so re-running never duplicates. Charges whose EMR patient
+  isn't linked to a case are left in staging flagged `unmatched_patient`.
+- **Payments allocate as a waterfall.** Per case, the PIP and insurance totals
+  are applied against the case's bills oldest-first (`min(billed, pot − billed
+  before)`), then the existing lien trigger recomputes
+  `max(0, billed − pip − insurance)` and the AR-rollup trigger updates the case
+  totals. EMR-sourced payments are reset and re-applied each run, so it stays
+  idempotent.
+- Cases link to ModMed by `cases.emr_patient_id`; every run stamps
+  `emr_last_synced_at` and logs to `emr_sync_run` (surfaced by the
+  `emr_sync_status` view).
+
+**Two mappings to tune against the real instance** (flagged in the code): payer
+typing (PIP vs insurance) is a keyword match on the payer/coverage label because
+generic FHIR doesn't label "PIP"; and payments allocate case-level totals across
+bills rather than per-charge. If your ModMed exposes `ExplanationOfBenefit` with
+per-line adjudication, that becomes the exact per-bill source and the waterfall
+is the fallback. The pure mappers are unit-tested — run
+`node supabase/functions/modmed-sync/fhir.test.mjs`.
+
+```bash
+# Deploy the read-only broker and set its secrets (server-side only)
+supabase functions deploy modmed-sync --no-verify-jwt
+supabase secrets set MODMED_BASE_URL=https://<env>.ema-api.com/ema-<stage>/firm/<prefix>/ema/fhir/v2
+supabase secrets set MODMED_API_KEY=... MODMED_USERNAME=... MODMED_PASSWORD=...
+supabase secrets set MODMED_DRY_RUN=true          # stage + report; flip to false to write bills
+
+# Link a case to its ModMed patient, then run (dry-run first)
+supabase db execute --sql "update cases set emr_patient_id='<PT-ID>' where id='<case>';"
+supabase functions invoke modmed-sync            # or ?since=YYYY-MM-DD to narrow the window
+supabase db execute --sql "select * from emr_sync_status limit 5;"
+```
 
 ## Setup
 
