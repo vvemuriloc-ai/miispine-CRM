@@ -10,14 +10,14 @@ self-contained, branded web dashboard.
 │  app/index.html   ── branded single-file dashboard (Supabase JS)
 │        │  reads ar_aging / autopilot_queue / cases / invoices (RLS)
 │        ▼
-│  Postgres  ── 22 tables · firm-isolation RLS · AR rollup triggers
+│  Postgres  ── 23 tables · firm-isolation RLS · AR rollup triggers
 │        ▲                              ▲
-│        │ service_role (bypasses RLS)  │ reconcile_emr()
-│  functions/autopilot  ── nightly:     │  functions/modmed-sync ── nightly:
-│    score → draft (Claude) →           │    GET ModMed FHIR charges + payments
-│    send (SendGrid) → log → reschedule │    → stage → reconcile bills/liens (read-only)
+│        │ service_role (bypasses RLS)  │ reconcile_emr[_records]()
+│  functions/autopilot  ── nightly:     │  functions/modmed-sync + modmed-records:
+│    score → draft (Claude) →           │    GET ModMed FHIR charges/payments (PM) +
+│    send (SendGrid) → log → reschedule │    clinical records (EMA) → reconcile (read-only)
 │        ▲                              ▲
-│  pg_cron 06:00 UTC (0005)        pg_cron 05:30 UTC (0012)
+│  pg_cron 06:00 UTC (0005)        pg_cron 05:00/05:30 UTC (0012/0014)
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -37,7 +37,10 @@ self-contained, branded web dashboard.
 | `supabase/migrations/0010_invoices.sql` | Collections invoices to the firm — sequential `MII-YYYY-NNNN` numbers, payment ledger rollup, overdue status, staff-only issuance |
 | `supabase/migrations/0011_modmed_sync.sql` | ModMed EMR sync landing tables + `reconcile_emr()` — charges → bills (idempotent), payment waterfall, staff-only RLS |
 | `supabase/migrations/0012_modmed_cron.sql` | Nightly pg_cron schedule for the read-only ModMed AR pull |
-| `supabase/functions/modmed-sync/` | Read-only FHIR broker: pulls ModMed charges + payments into the covered DB (`index.ts`) with a tested pure-mapping module (`fhir.js`) |
+| `supabase/migrations/0013_emr_records.sql` | ModMed clinical-records landing + `reconcile_emr_records()` — DocumentReference → `records`, idempotent, staff-only RLS |
+| `supabase/migrations/0014_records_cron.sql` | Nightly pg_cron schedule for the read-only ModMed clinical-records pull |
+| `supabase/functions/modmed-sync/` | Read-only FHIR broker (PM/billing): pulls ModMed charges + payments into the covered DB (`index.ts`) with a tested pure-mapping module (`fhir.js`) |
+| `supabase/functions/modmed-records/` | Read-only FHIR broker (EMA/clinical): pulls DocumentReference records into the private bucket (`index.ts`) with a tested mapping module (`fhir.js`) |
 | `supabase/functions/records-download/index.ts` | Mints audited, 60s signed URLs after firm + HIPAA checks |
 | `tools/import_from_xlsx.js` | Extracts the legacy PI AR workbook to a staging CSV (no npm deps) |
 | `supabase/seed.sql` | Demo dataset (2 firms, 6 cases, bills, PIP, milestones) |
@@ -178,11 +181,26 @@ firm/attorney split gets untangled by hand.
 ## ModMed EMR sync (live, read-only)
 
 The spreadsheet import above is the one-time cutover; the ongoing source of
-truth is miiSpine's EMR, **ModMed**. Charges live on the Practice-Management
-(PM) side and clinical notes on EMA. `0011_modmed_sync.sql` +
-`supabase/functions/modmed-sync` pull the **AR side (charges + payments) live and
-read-only** over ModMed's FHIR API, so the outstanding lien stops being a typed
-figure and becomes reconciled from the billing system every night.
+truth is miiSpine's EMR, **ModMed**, which has **two sides behind two separate
+API credentials**:
+
+- **EMA / clinical FHIR** (`DocumentReference`, `Patient`, `Encounter`,
+  `Condition`, `Coverage`, …) — powers the **records sync** below.
+- **Practice-Management / billing** (`ChargeItem`, `Invoice`,
+  `PaymentReconciliation`, …) — powers the **AR sync** below. This is a distinct
+  ModMed entitlement; a clinical FHIR credential does **not** expose billing
+  resources, so the AR pull needs the PM API turned on for your tenant.
+
+Both brokers are read-only (GET + the OAuth token POST only; never write to the
+EMR), hold their credentials only in function secrets, and land everything in the
+covered Supabase DB. They share the `MODMED_*` secrets and the `emr_sync_run` /
+`emr_sync_status` run log.
+
+### AR sync — charges + payments (`modmed-sync`, PM/billing credential)
+
+`0011_modmed_sync.sql` + `supabase/functions/modmed-sync` pull the **AR side
+(charges + payments)** over ModMed's PM FHIR API, so the outstanding lien stops
+being a typed figure and becomes reconciled from the billing system every night.
 
 ```
 ModMed FHIR  ──GET ChargeItem / Invoice / PaymentReconciliation (paged)──┐
@@ -240,6 +258,38 @@ supabase secrets set MODMED_DRY_RUN=true          # stage + report; flip to fals
 supabase db execute --sql "update cases set emr_patient_id='<PT-ID>' where id='<case>';"
 supabase functions invoke modmed-sync            # or ?since=YYYY-MM-DD to narrow the window
 supabase db execute --sql "select * from emr_sync_status limit 5;"
+```
+
+### Records sync — clinical documents (`modmed-records`, EMA credential)
+
+`0013_emr_records.sql` + `supabase/functions/modmed-records` turn the clinical
+FHIR credential into the **medical-records feature's supply line**. For each case
+linked by `cases.emr_patient_id`, the broker searches `DocumentReference`,
+downloads each document's bytes (`Binary`), uploads them into the **same private
+`medical-records` bucket** from 0009, and `reconcile_emr_records()` upserts a
+`records` row keyed on the EMR document id. The attorney portal then serves those
+files through the existing **HIPAA-gated, audited `records-download`** path — so
+counsel self-serves records that flowed straight from the EMR, without a fax.
+
+- **Only case-linked patients are pulled** — no clinic-wide scrape.
+- **`DocumentReference.type` → record type.** LOINC codes first (op note,
+  imaging, discharge, eval, progress), then a text fallback, else `other`.
+- **Idempotent + incremental.** Dedup on the EMR document id; a document that
+  already has a file in the bucket isn't re-downloaded. A pulled file lands as
+  `status='uploaded'` (attorney can download); metadata-only (dry-run or a failed
+  fetch) lands as `received`, and upgrades to `uploaded` on a later run.
+- **Read/search scopes only** — the app's `_CREATE`/`_UPDATE` scopes go unused.
+
+One tenant-specific bit to confirm (flagged in the code): if your ModMed requires
+the `BINARY_CREATE_URL` POST flow to mint a download link rather than a direct
+`Binary/{id}` GET, that's the one spot to adjust in `fetchBytes`. Mappers are
+unit-tested — `node supabase/functions/modmed-records/fhir.test.mjs`.
+
+```bash
+supabase functions deploy modmed-records --no-verify-jwt   # shares MODMED_* secrets
+supabase functions invoke modmed-records                   # dry-run first (MODMED_DRY_RUN=true)
+supabase db execute --sql "select kind, records_seen, files_uploaded, unmatched
+  from emr_sync_status where kind='records' limit 5;"
 ```
 
 ## Setup
