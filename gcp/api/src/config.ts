@@ -8,4 +8,9 @@ export const config = {
   authMode: (process.env.AUTH_MODE ?? "firebase") as "firebase" | "mock",
   profileTtlMs: Number(process.env.PROFILE_TTL_MS ?? 60_000),
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
+  // Records storage: 'gcs' mints real V4 signed URLs (needs @google-cloud/storage
+  // + a service account); 'mock' returns a fake URL for local/integration tests.
+  storageMode: (process.env.STORAGE_MODE ?? "gcs") as "gcs" | "mock",
+  recordsBucket: process.env.RECORDS_BUCKET ?? "miicase-medical-records",
+  signedUrlTtlSec: Number(process.env.SIGNED_URL_TTL_SEC ?? 60),
 };

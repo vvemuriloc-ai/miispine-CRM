@@ -4,6 +4,8 @@
 import type pg from "pg";
 import type { Profile } from "./auth.ts";
 import * as q from "./sql.ts";
+import { signDownloadUrl } from "./storage.ts";
+import { config } from "./config.ts";
 
 export type Ctx = {
   params: Record<string, string>;
@@ -44,5 +46,17 @@ export const routes: Route[] = [
       const row = await q.updateBill(client, ctx.params.id, ctx.body ?? {});
       if (!row) throw new HttpError(404, "bill not found or not permitted");
       return row;
+    } },
+
+  // The ONLY path to a record file: firm ownership (RLS) + HIPAA release +
+  // audit, then a short-lived GCS signed URL. Mirrors the Supabase edge fn.
+  { method: "POST", path: "/api/records/:id/download", auth: true, h: async (ctx, client) => {
+      const rec = await q.recordForDownload(client, ctx.params.id);
+      if (!rec) throw new HttpError(404, "not found or not authorized");
+      if (!rec.hipaa_release_on_file) throw new HttpError(403, "HIPAA release not on file for this client");
+      if (!rec.storage_key) throw new HttpError(409, "record has no file yet");
+      await q.writeAudit(client, { user_id: ctx.profile.uid, firm_id: rec.firm_id, resource_id: rec.id });
+      const url = await signDownloadUrl(rec.storage_key, config.signedUrlTtlSec);
+      return { url, expires_in: config.signedUrlTtlSec };
     } },
 ];

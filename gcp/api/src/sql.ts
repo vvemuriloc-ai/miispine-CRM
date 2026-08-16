@@ -56,6 +56,28 @@ export async function createRecord(c: pg.PoolClient, b: any) {
   return r.rows[0];
 }
 
+// Fetch a record for download WITH its case's HIPAA-release flag. RLS
+// (records_select) returns the row only if the caller's firm owns it or they
+// are staff, so a cross-firm id simply comes back empty.
+export async function recordForDownload(c: pg.PoolClient, id: string) {
+  const r = await c.query(
+    `select r.id, r.firm_id, r.storage_key, cl.hipaa_release_on_file
+       from records r
+       join cases cs on cs.id = r.case_id
+       join clients cl on cl.id = cs.client_id
+      where r.id = $1`, [id]);
+  return r.rows[0] ?? null;
+}
+
+// Immutable audit row for a PHI disclosure. audit_insert RLS requires the
+// caller's firm (or staff); the caller's firm matches the record's firm.
+export async function writeAudit(c: pg.PoolClient, a: { user_id: string; firm_id: string; resource_id: string }) {
+  await c.query(
+    `insert into audit_log (user_id, firm_id, action, resource_type, resource_id)
+     values ($1, $2, 'record_download', 'record', $3)`,
+    [a.user_id, a.firm_id, a.resource_id]);
+}
+
 export async function updateBill(c: pg.PoolClient, id: string, b: any) {
   // Reconciliation edits. RLS ensures the caller owns the bill's firm (or is
   // staff); the lien trigger recomputes lien_amount and the AR trigger the case.

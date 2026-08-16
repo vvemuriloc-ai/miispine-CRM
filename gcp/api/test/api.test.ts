@@ -107,6 +107,23 @@ async function main() {
   // att2 cannot patch att1's bill
   ok("att2 cannot patch F1 bill", (await att2("PATCH", `/api/bills/bbbb1111-1111-1111-1111-111111111111`, { pip_paid: 0 })).status === 404);
 
+  // --- records download: HIPAA-gated GCS signed URL + audit ---
+  // staffRow is a C1 record with a file; Alice (C1 client) has release on file.
+  const dl = await att1("POST", `/api/records/${staffRow.id}/download`);
+  const dlBody = await dl.json();
+  ok("att1 downloads F1 record (release on file)", dl.status === 200 && typeof dlBody.url === "string" && dlBody.expires_in === 60, JSON.stringify(dlBody));
+
+  const ac = new pg.Client({ connectionString: OWNER }); await ac.connect();
+  const audit = await ac.query("select count(*)::int n from audit_log where resource_id = $1 and action = 'record_download'", [staffRow.id]);
+  ok("download wrote an audit row", audit.rows[0].n === 1);
+  await ac.end();
+
+  // staff uploads a record on C2 (Bob has NO release) → att2 download refused
+  const c2rec = await (await staff("POST", "/api/records", { case_id: C2, firm_id: F2, record_type: "op_report", status: "uploaded", storage_key: "emr/c2.pdf" })).json();
+  ok("att2 blocked: no HIPAA release", (await att2("POST", `/api/records/${c2rec.id}/download`)).status === 403);
+  // cross-firm download is invisible (404), not merely forbidden
+  ok("att1 cannot download F2 record", (await att1("POST", `/api/records/${c2rec.id}/download`)).status === 404);
+
   server.close();
   const { pool } = await import("../src/db.ts");
   await pool.end();
