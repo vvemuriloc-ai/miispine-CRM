@@ -24,6 +24,9 @@ export type Route = { method: string; path: string; auth: boolean; h: AuthedHand
 export const routes: Route[] = [
   { method: "GET", path: "/api/me", auth: true, h: async (ctx) => ctx.profile },
 
+  // One-shot bundle for the dashboard's initial load.
+  { method: "GET", path: "/api/dashboard", auth: true, h: async (ctx, client) => ({ me: ctx.profile, ...(await q.getDashboard(client)) }) },
+
   { method: "GET", path: "/api/cases", auth: true, h: (_c, client) => q.listCases(client) },
   { method: "GET", path: "/api/cases/:id", auth: true, h: async (ctx, client) => {
       const row = await q.getCase(client, ctx.params.id);
@@ -74,9 +77,9 @@ export const routes: Route[] = [
       return row;
     } },
 
-  // Mark a flagged case reviewed / edit its review state (firm-or-staff).
-  { method: "PATCH", path: "/api/cases/:id/review", auth: true, h: async (ctx, client) => {
-      const row = await q.updateCaseReview(client, ctx.params.id, ctx.body ?? {});
+  // Update a case: status (reconciliation) and/or review state (firm-or-staff).
+  { method: "PATCH", path: "/api/cases/:id", auth: true, h: async (ctx, client) => {
+      const row = await q.updateCase(client, ctx.params.id, ctx.body ?? {});
       if (!row) throw new HttpError(404, "case not found or not permitted");
       return row;
     } },

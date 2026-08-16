@@ -79,6 +79,10 @@ async function main() {
   ok("me att1 firm", (await (await att1("GET", "/api/me")).json()).firmId === F1);
   ok("me staff flag", (await (await staff("GET", "/api/me")).json()).isStaff === true);
 
+  // /api/dashboard bundle — nested case shape, firm-scoped
+  const dash = await (await att1("GET", "/api/dashboard")).json();
+  ok("dashboard bundle scoped + nested", dash.me.firmId === F1 && dash.cases.length === 1 && dash.cases[0].firm.name === "Firm One" && Array.isArray(dash.ar_aging) && Array.isArray(dash.invoices), JSON.stringify({ n: dash.cases?.length }));
+
   // views scoped
   ok("ar-aging ok", Array.isArray(await (await att1("GET", "/api/ar-aging")).json()));
   ok("autopilot-queue ok", Array.isArray(await (await staff("GET", "/api/autopilot-queue")).json()));
@@ -144,9 +148,9 @@ async function main() {
   ok("staff voids an invoice", voided.status === "void");
 
   // --- case review resolution ---
-  const rev = await (await att1("PATCH", `/api/cases/${C1}/review`, { review_status: "resolved" })).json();
+  const rev = await (await att1("PATCH", `/api/cases/${C1}`, { review_status: "resolved" })).json();
   ok("att1 resolves own case review", rev.review_status === "resolved", JSON.stringify(rev));
-  ok("att2 cannot review F1 case", (await att2("PATCH", `/api/cases/${C1}/review`, { review_status: "resolved" })).status === 404);
+  ok("att2 cannot review F1 case", (await att2("PATCH", `/api/cases/${C1}`, { review_status: "resolved" })).status === 404);
 
   server.close();
   const { pool } = await import("../src/db.ts");

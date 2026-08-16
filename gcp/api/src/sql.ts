@@ -40,6 +40,43 @@ export async function getCase(c: pg.PoolClient, id: string) {
   };
 }
 
+// One bundle for the dashboard's initial load, cases in the nested "embed"
+// shape the frontend's mapCaseRow expects. All queries run under RLS.
+export async function getDashboard(c: pg.PoolClient) {
+  const cases = (await c.query(
+    `select c.id, c.claim_number, c.status, c.opened_at, c.followup_priority,
+            c.last_outreach_at, c.next_followup_at, c.firm_id, c.review_status, c.review_reason,
+            f.name as firm_name, a.name as attorney_name, a.email as attorney_email,
+            a.avg_response_days, a.preferred_contact,
+            cl.first_name, cl.last_name, cl.hipaa_release_on_file
+       from cases c join firms f on f.id=c.firm_id join clients cl on cl.id=c.client_id
+       left join attorneys a on a.id=c.attorney_id`)).rows;
+  const ids = cases.map((r) => r.id);
+  const grab = async (sql: string) => ids.length ? (await c.query(sql, [ids])).rows : [];
+  const bills = await grab("select b.case_id, b.id, b.description, b.billed_amount, b.pip_paid, b.insurance_paid, b.lien_amount, b.lien_manual, b.collected_amount, p.name as provider_name, p.is_miispine from medical_bills b left join providers p on p.id=b.provider_id where b.case_id = any($1)");
+  const pip = await grab("select case_id, status, balance_remaining from pip_ledger where case_id = any($1)");
+  const ms = await grab("select case_id, milestone_type, actual_date from milestones where case_id = any($1) and actual_date is not null");
+  const recs = await grab("select id, case_id, record_type, status, filename, (storage_key is not null) as has_file from records where case_id = any($1)");
+  const byCase = (arr: any[]) => { const m = new Map<string, any[]>(); for (const r of arr) { (m.get(r.case_id) ?? m.set(r.case_id, []).get(r.case_id)!).push(r); } return m; };
+  const bM = byCase(bills), mM = byCase(ms), rM = byCase(recs);
+  const pM = new Map(pip.map((p) => [p.case_id, p]));
+  const nested = cases.map((r) => ({
+    id: r.id, claim_number: r.claim_number, status: r.status, opened_at: r.opened_at,
+    followup_priority: r.followup_priority, last_outreach_at: r.last_outreach_at,
+    next_followup_at: r.next_followup_at, firm_id: r.firm_id,
+    review_status: r.review_status, review_reason: r.review_reason,
+    firm: { id: r.firm_id, name: r.firm_name },
+    attorney: { name: r.attorney_name, email: r.attorney_email, avg_response_days: r.avg_response_days, preferred_contact: r.preferred_contact },
+    client: { first_name: r.first_name, last_name: r.last_name, hipaa_release_on_file: r.hipaa_release_on_file },
+    pip_ledger: pM.has(r.id) ? [pM.get(r.id)] : [],
+    medical_bills: (bM.get(r.id) ?? []).map((b) => ({ id: b.id, description: b.description, billed_amount: b.billed_amount, pip_paid: b.pip_paid, insurance_paid: b.insurance_paid, lien_amount: b.lien_amount, lien_manual: b.lien_manual, collected_amount: b.collected_amount, provider: { name: b.provider_name, is_miispine: b.is_miispine } })),
+    milestones: (mM.get(r.id) ?? []).map((m) => ({ milestone_type: m.milestone_type, actual_date: m.actual_date })),
+    records: (rM.get(r.id) ?? []).map((x) => ({ id: x.id, record_type: x.record_type, status: x.status, filename: x.filename, has_file: x.has_file })),
+  }));
+  const view = async (v: string) => (await c.query(`select * from ${v}`)).rows;
+  return { cases: nested, ar_aging: await view("ar_aging"), autopilot_queue: await view("autopilot_queue"), invoices: await view("invoices_view") };
+}
+
 export const listView = (view: string) =>
   async (c: pg.PoolClient) => (await c.query(`select * from ${view}`)).rows;
 
@@ -103,11 +140,15 @@ export async function voidInvoice(c: pg.PoolClient, id: string) {
   return (await c.query("select * from invoices_view where id=$1", [id])).rows[0];
 }
 
-// ---- Case review resolution (firm-or-staff; RLS enforces) -----------------
-export async function updateCaseReview(c: pg.PoolClient, id: string, b: any) {
+// ---- Case update: status + review fields (firm-or-staff; RLS enforces) ----
+export async function updateCase(c: pg.PoolClient, id: string, b: any) {
   const r = await c.query(
-    "update cases set review_status = coalesce($2, review_status), review_reason = coalesce($3, review_reason) where id=$1 returning id, review_status, review_reason",
-    [id, b.review_status ?? null, b.review_reason ?? null]);
+    `update cases set
+       status        = coalesce($2, status),
+       review_status = coalesce($3, review_status),
+       review_reason = coalesce($4, review_reason)
+     where id=$1 returning id, status, review_status, review_reason`,
+    [id, b.status ?? null, b.review_status ?? null, b.review_reason ?? null]);
   return r.rows[0] ?? null;
 }
 

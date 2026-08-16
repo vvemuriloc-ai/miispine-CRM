@@ -90,6 +90,10 @@ psql "$DATABASE_URL" -f gcp/db/test_rls.sql   # prove firm isolation
   and a jobs integration test drives all three against real SQL (10 checks:
   waterfall lien + idempotency, DocumentReference→GCS→records, autopilot
   draft/log/schedule). See `gcp/functions/README.md`.
-- Next: **Phase 4** — point the dashboard at the API (swap the supabase-js data
-  layer), then Terraform/`gcloud` infra (Cloud SQL, Cloud Run ×2, Cloud
-  Scheduler, GCS, Firebase, Secret Manager) + the go-live runbook.
+- **Phase 4a — frontend + API completion: done.** The dashboard (`gcp/web`) now
+  talks to the API via Firebase Auth + `fetch` (one `GET /api/dashboard` load,
+  writes mapped to endpoints); demo mode still works with no backend. The API
+  gained the invoice + case-update endpoints the dashboard needs (33 API checks).
+  Demo render smoke-tested headless.
+- Next: **Phase 4b — infra** — Terraform/`gcloud` for Cloud SQL, Cloud Run ×2,
+  Cloud Scheduler, GCS, Firebase, Secret Manager, + the go-live runbook.
