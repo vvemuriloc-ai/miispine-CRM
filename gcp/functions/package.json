@@ -1,0 +1,20 @@
+{
+  "name": "miicase-jobs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "miiCase background jobs (autopilot, modmed-sync, modmed-records) for Cloud Run",
+  "scripts": {
+    "start": "node --experimental-strip-types server.ts",
+    "test": "node --experimental-strip-types test/jobs.test.ts",
+    "test:mappers": "node modmed-sync/fhir.test.mjs && node modmed-records/fhir.test.mjs"
+  },
+  "engines": { "node": ">=22.6" },
+  "dependencies": {
+    "pg": "^8.13.0"
+  },
+  "optionalDependencies": {
+    "@google-cloud/storage": "^7.0.0",
+    "@anthropic-ai/sdk": "^0.68.0"
+  }
+}

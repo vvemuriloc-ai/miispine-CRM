@@ -27,9 +27,9 @@ plumbing.
 | Postgres + RLS (JWT claim) | **Cloud SQL Postgres + RLS (session variable)** | ✅ ported & proven |
 | Auth + access-token hook | **Firebase Auth** + API-tier claim lookup | ✅ DB side; 🔜 API |
 | PostgREST (browser→DB) | **Cloud Run API (Node/TS)** | ✅ built & tested |
-| Supabase Storage + signed URLs | **GCS private bucket + V4 signed URLs** | 🔜 Phase 3 |
-| Edge Functions (Deno) ×4 | **Cloud Run services/jobs (Node/TS)** | 🔜 Phase 3 |
-| pg_cron + pg_net | **Cloud Scheduler → Cloud Run** | 🔜 Phase 3 |
+| Supabase Storage + signed URLs | **GCS private bucket + V4 signed URLs** | ✅ built & tested |
+| Edge Functions (Deno) ×4 | **Cloud Run services/jobs (Node/TS)** | ✅ built & tested |
+| pg_cron + pg_net | **Cloud Scheduler → Cloud Run** | ✅ jobs ready; scheduler in Phase 4 |
 
 ## The tenancy contract (the one thing that changed)
 
@@ -83,5 +83,13 @@ psql "$DATABASE_URL" -f gcp/db/test_rls.sql   # prove firm isolation
   (native type-stripping). Firebase token → profile → `app.*` → RLS. Integration
   test drives the real server and proves isolation + the records guard + bill
   reconciliation end to end (20 checks). See `gcp/api/README.md`.
-- Next: **Phase 3** — GCS signed-URL records download + the 4 background jobs
-  (autopilot, modmed-sync, modmed-records) as Cloud Run on Cloud Scheduler.
+- **Phase 3 — Storage + jobs: done.** Records download is a HIPAA-gated,
+  audited GCS V4 signed-URL endpoint in the API tier (`POST /api/records/:id/
+  download`). The three background jobs (`gcp/functions`) are ported to Node/TS
+  on Cloud Run — the ModMed FHIR mappers move over unchanged (41 mapper checks),
+  and a jobs integration test drives all three against real SQL (10 checks:
+  waterfall lien + idempotency, DocumentReference→GCS→records, autopilot
+  draft/log/schedule). See `gcp/functions/README.md`.
+- Next: **Phase 4** — point the dashboard at the API (swap the supabase-js data
+  layer), then Terraform/`gcloud` infra (Cloud SQL, Cloud Run ×2, Cloud
+  Scheduler, GCS, Firebase, Secret Manager) + the go-live runbook.
