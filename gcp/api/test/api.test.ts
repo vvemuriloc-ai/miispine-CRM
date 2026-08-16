@@ -124,6 +124,30 @@ async function main() {
   // cross-firm download is invisible (404), not merely forbidden
   ok("att1 cannot download F2 record", (await att1("POST", `/api/records/${c2rec.id}/download`)).status === 404);
 
+  // --- invoices: staff issue / pay / void; firms read their own ---
+  ok("attorney cannot issue an invoice", (await att1("POST", "/api/invoices", { case_id: C1, firm_id: F1, amount: 22000 })).status === 403);
+  const invRes = await staff("POST", "/api/invoices", { case_id: C1, firm_id: F1, amount: 22000, due_days: 30 });
+  const inv = await invRes.json();
+  ok("staff issues invoice (MII- number, sent)", invRes.status === 200 && /^MII-\d{4}-\d{4}$/.test(inv.invoice_no) && inv.status === "sent", JSON.stringify(inv));
+
+  const paid = await (await staff("POST", `/api/invoices/${inv.id}/payments`, { amount: 22000, method: "check" })).json();
+  ok("full payment → status paid", paid.status === "paid" && Number(paid.balance_due) === 0, JSON.stringify(paid));
+
+  // firm sees its own invoice; other firm does not
+  const f1inv = await (await att1("GET", "/api/invoices")).json();
+  ok("att1 sees the F1 invoice", f1inv.length === 1 && f1inv[0].id === inv.id);
+  const f2inv = await (await att2("GET", "/api/invoices")).json();
+  ok("att2 sees no invoices", f2inv.length === 0);
+
+  const inv2 = await (await staff("POST", "/api/invoices", { case_id: C1, firm_id: F1, amount: 5000 })).json();
+  const voided = await (await staff("PATCH", `/api/invoices/${inv2.id}`, { status: "void" })).json();
+  ok("staff voids an invoice", voided.status === "void");
+
+  // --- case review resolution ---
+  const rev = await (await att1("PATCH", `/api/cases/${C1}/review`, { review_status: "resolved" })).json();
+  ok("att1 resolves own case review", rev.review_status === "resolved", JSON.stringify(rev));
+  ok("att2 cannot review F1 case", (await att2("PATCH", `/api/cases/${C1}/review`, { review_status: "resolved" })).status === 404);
+
   server.close();
   const { pool } = await import("../src/db.ts");
   await pool.end();

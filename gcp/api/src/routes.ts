@@ -48,6 +48,39 @@ export const routes: Route[] = [
       return row;
     } },
 
+  // Invoices — staff issue, record payments, void (RLS is staff-only too;
+  // the route check just turns an RLS violation into a clean 403).
+  { method: "POST", path: "/api/invoices", auth: true, h: async (ctx, client) => {
+      if (!ctx.profile.isStaff) throw new HttpError(403, "staff only");
+      const b = ctx.body ?? {};
+      if (!b.case_id || !b.firm_id || !(b.amount > 0)) throw new HttpError(400, "case_id, firm_id, amount required");
+      const dueDays = Number(b.due_days ?? 30);
+      const due = new Date(Date.now() + dueDays * 86_400_000).toISOString().slice(0, 10);
+      return q.createInvoice(client, { ...b, due_date: due });
+    } },
+  { method: "POST", path: "/api/invoices/:id/payments", auth: true, h: async (ctx, client) => {
+      if (!ctx.profile.isStaff) throw new HttpError(403, "staff only");
+      const b = ctx.body ?? {};
+      if (!(b.amount > 0)) throw new HttpError(400, "amount required");
+      const row = await q.addInvoicePayment(client, ctx.params.id, b);
+      if (!row) throw new HttpError(404, "invoice not found");
+      return row;
+    } },
+  { method: "PATCH", path: "/api/invoices/:id", auth: true, h: async (ctx, client) => {
+      if (!ctx.profile.isStaff) throw new HttpError(403, "staff only");
+      if ((ctx.body ?? {}).status !== "void") throw new HttpError(400, "only status:'void' is supported");
+      const row = await q.voidInvoice(client, ctx.params.id);
+      if (!row) throw new HttpError(404, "invoice not found");
+      return row;
+    } },
+
+  // Mark a flagged case reviewed / edit its review state (firm-or-staff).
+  { method: "PATCH", path: "/api/cases/:id/review", auth: true, h: async (ctx, client) => {
+      const row = await q.updateCaseReview(client, ctx.params.id, ctx.body ?? {});
+      if (!row) throw new HttpError(404, "case not found or not permitted");
+      return row;
+    } },
+
   // The ONLY path to a record file: firm ownership (RLS) + HIPAA release +
   // audit, then a short-lived GCS signed URL. Mirrors the Supabase edge fn.
   { method: "POST", path: "/api/records/:id/download", auth: true, h: async (ctx, client) => {

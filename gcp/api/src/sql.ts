@@ -78,6 +78,39 @@ export async function writeAudit(c: pg.PoolClient, a: { user_id: string; firm_id
     [a.user_id, a.firm_id, a.resource_id]);
 }
 
+// ---- Invoices (staff-only writes; RLS also enforces) ----------------------
+export async function createInvoice(c: pg.PoolClient, b: any) {
+  const r = await c.query(
+    `insert into invoices (case_id, firm_id, amount, memo, status, issue_date, due_date, sent_date)
+     values ($1,$2,$3,$4,'sent',current_date,$5,current_date) returning id`,
+    [b.case_id, b.firm_id, b.amount, b.memo ?? null, b.due_date]);
+  return (await c.query("select * from invoices_view where id=$1", [r.rows[0].id])).rows[0];
+}
+
+export async function addInvoicePayment(c: pg.PoolClient, invoiceId: string, b: any) {
+  const inv = await c.query("select firm_id from invoices where id=$1", [invoiceId]);
+  if (!inv.rows.length) return null;
+  await c.query(
+    `insert into invoice_payments (invoice_id, firm_id, amount, paid_on, method, note)
+     values ($1,$2,$3,coalesce($4::date,current_date),$5,$6)`,
+    [invoiceId, inv.rows[0].firm_id, b.amount, b.paid_on ?? null, b.method ?? null, b.note ?? null]);
+  return (await c.query("select * from invoices_view where id=$1", [invoiceId])).rows[0];
+}
+
+export async function voidInvoice(c: pg.PoolClient, id: string) {
+  const r = await c.query("update invoices set status='void' where id=$1 returning id", [id]);
+  if (!r.rows.length) return null;
+  return (await c.query("select * from invoices_view where id=$1", [id])).rows[0];
+}
+
+// ---- Case review resolution (firm-or-staff; RLS enforces) -----------------
+export async function updateCaseReview(c: pg.PoolClient, id: string, b: any) {
+  const r = await c.query(
+    "update cases set review_status = coalesce($2, review_status), review_reason = coalesce($3, review_reason) where id=$1 returning id, review_status, review_reason",
+    [id, b.review_status ?? null, b.review_reason ?? null]);
+  return r.rows[0] ?? null;
+}
+
 export async function updateBill(c: pg.PoolClient, id: string, b: any) {
   // Reconciliation edits. RLS ensures the caller owns the bill's firm (or is
   // staff); the lien trigger recomputes lien_amount and the AR trigger the case.
