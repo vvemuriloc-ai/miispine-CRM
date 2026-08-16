@@ -26,7 +26,7 @@ plumbing.
 | --- | --- | --- |
 | Postgres + RLS (JWT claim) | **Cloud SQL Postgres + RLS (session variable)** | ✅ ported & proven |
 | Auth + access-token hook | **Firebase Auth** + API-tier claim lookup | ✅ DB side; 🔜 API |
-| PostgREST (browser→DB) | **Cloud Run API (Node/TS)** | 🔜 Phase 2 |
+| PostgREST (browser→DB) | **Cloud Run API (Node/TS)** | ✅ built & tested |
 | Supabase Storage + signed URLs | **GCS private bucket + V4 signed URLs** | 🔜 Phase 3 |
 | Edge Functions (Deno) ×4 | **Cloud Run services/jobs (Node/TS)** | 🔜 Phase 3 |
 | pg_cron + pg_net | **Cloud Scheduler → Cloud Run** | 🔜 Phase 3 |
@@ -79,5 +79,9 @@ psql "$DATABASE_URL" -f gcp/db/test_rls.sql   # prove firm isolation
 - **Phase 1 — DB foundation: done.** All 11 migrations apply clean on Postgres
   16; session-variable RLS proven (firm isolation, staff bypass, fails-closed,
   records guard). Nothing here is Supabase-specific anymore.
-- Next: **Phase 2** — the Cloud Run API tier (Firebase token verify → set
-  `app.*` → query), replacing PostgREST.
+- **Phase 2 — API tier: done.** `gcp/api` — Node/TS on Cloud Run, no build step
+  (native type-stripping). Firebase token → profile → `app.*` → RLS. Integration
+  test drives the real server and proves isolation + the records guard + bill
+  reconciliation end to end (20 checks). See `gcp/api/README.md`.
+- Next: **Phase 3** — GCS signed-URL records download + the 4 background jobs
+  (autopilot, modmed-sync, modmed-records) as Cloud Run on Cloud Scheduler.
