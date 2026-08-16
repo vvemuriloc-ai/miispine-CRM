@@ -1,0 +1,7 @@
+# Never commit state (contains DB passwords) or your real vars.
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+crash.log

@@ -95,5 +95,17 @@ psql "$DATABASE_URL" -f gcp/db/test_rls.sql   # prove firm isolation
   writes mapped to endpoints); demo mode still works with no backend. The API
   gained the invoice + case-update endpoints the dashboard needs (33 API checks).
   Demo render smoke-tested headless.
-- Next: **Phase 4b — infra** — Terraform/`gcloud` for Cloud SQL, Cloud Run ×2,
-  Cloud Scheduler, GCS, Firebase, Secret Manager, + the go-live runbook.
+- **Phase 4b — infra + runbook: done.** `gcp/infra` is a Terraform module for
+  Cloud SQL (PG16, private-to-Cloud-Run via the built-in connector, PITR
+  backups), the two Cloud Run services (API public + Firebase-gated, jobs
+  invoke-only by the scheduler SA), a private GCS records bucket, Secret Manager
+  (DB URLs set by TF; third-party keys added out-of-band), least-privilege
+  service accounts, and three Cloud Scheduler triggers. `RUNBOOK.md` is the
+  ordered go-live (billing → apply → secrets → build/deploy → migrations →
+  Firebase → dashboard → real data), with the cost-starts point flagged. HCL
+  parses + formats clean; full `terraform validate` needs registry access
+  (blocked in this sandbox), so validate/plan when you run it.
+
+**The re-platform is code-complete** — DB, API, storage, jobs, frontend, and infra
+are all built and (except the live cloud apply) tested. What remains is running
+the runbook against your project once billing + the BAA are in place.

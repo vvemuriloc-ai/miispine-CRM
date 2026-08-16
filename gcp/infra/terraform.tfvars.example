@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars and fill in. Do NOT commit terraform.tfvars.
+project_id          = "miicase-prod"        # your project ID
+region              = "us-central1"
+records_bucket_name = "miicase-records-CHANGEME"  # must be globally unique
+cors_origin         = "*"                     # set to the dashboard URL once known
+modmed_dry_run      = "true"                   # flip to "false" after reviewing sync runs
+
+# api_image / jobs_image are left at the placeholder default for the first
+# apply; the runbook builds the real images and redeploys.
