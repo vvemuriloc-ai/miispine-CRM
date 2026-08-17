@@ -194,6 +194,12 @@ const ONLY_TABS = tIdx >= 0
 // named tab's column layout (for worklists whose header row was never typed).
 const hIdx = args.indexOf("--headers-from");
 const HEADERS_FROM = hIdx >= 0 ? args[hIdx + 1].trim().toLowerCase() : null;
+// --legacy-tabs "Tab1,Tab2": headerless tabs that still use the OLD column
+// layout (no First DOS; status at col 9) — e.g. "Older Shet".
+const lIdx = args.indexOf("--legacy-tabs");
+const LEGACY_TABS = lIdx >= 0
+  ? new Set(args[lIdx + 1].split(",").map((t) => t.trim().toLowerCase()).filter(Boolean))
+  : new Set();
 
 // Pass 1: parse every sheet and detect headers, so a headerless tab can
 // borrow a mapping regardless of tab order.
@@ -217,7 +223,10 @@ for (const p of parsed) {
     continue;
   }
   let map, dataStart, how;
-  if (p.found) {
+  if (LEGACY_TABS.has(p.name.trim().toLowerCase())) {
+    map = LEGACY_POSITIONS; dataStart = p.found ? p.found.dataStart : 0;
+    how = "legacy (old) column layout (--legacy-tabs)";
+  } else if (p.found) {
     map = p.found.map; dataStart = p.found.dataStart;
     lastMap = map;
     how = `header on row ${dataStart}, ${Object.keys(map).length} columns mapped`;
@@ -250,6 +259,16 @@ alter table staging_import add column if not exists first_dos_raw   text;
 alter table staging_import add column if not exists category        text;
 alter table staging_import add column if not exists sub_category    text;
 alter table staging_import add column if not exists additional_info text;
+
+create or replace function import_pip_status(t text) returns text language sql immutable as $sq$
+  select case
+    when lower(trim(coalesce(t,''))) like 'paid%' then 'closed'
+    when lower(coalesce(t,'')) like 'exhaust%'     then 'exhausted'
+    when lower(coalesce(t,'')) like 'reserv%'      then 'reserved'
+    when lower(coalesce(t,'')) like 'open%'        then 'open'
+    when lower(coalesce(t,'')) like 'lien%'        then 'reserved'
+    else null end;
+$sq$;
 
 create or replace function normalize_import()
 returns table(cases_created int, firms_total int, rows_flagged int)
@@ -298,9 +317,23 @@ begin
     v_doi  := import_parse_date(rec.doi_raw);
     v_dos  := import_parse_date(rec.first_dos_raw);
     v_las  := import_parse_date(rec.last_action_raw);
-    v_pip  := import_pip_status(rec.status_raw);
-    if v_pip is null then v_review := true; v_reason := v_reason || 'status-unrecognized; '; v_pip := 'open'; end if;
-    v_paid := import_is_paid(rec.status_raw);
+    if rec.source_tab ilike '%paid%' then
+      v_paid := true; v_pip := 'closed';
+      if nullif(trim(rec.status_raw), '') is not null
+         and not import_is_paid(rec.status_raw) then
+        v_review := true; v_reason := v_reason || 'paid-tab-check-columns; ';
+      end if;
+    else
+      v_pip  := import_pip_status(rec.status_raw);
+      v_paid := import_is_paid(rec.status_raw);
+      if v_pip is null then
+        if nullif(trim(rec.status_raw), '') is null then
+          v_pip := 'open';
+        else
+          v_review := true; v_reason := v_reason || 'status-unrecognized; '; v_pip := 'open';
+        end if;
+      end if;
+    end if;
 
     v_notes := nullif(concat_ws(' | ', nullif(trim(rec.notes), ''), nullif(trim(rec.additional_info), '')), '');
 

@@ -20,6 +20,17 @@ alter table staging_import add column if not exists category        text;
 alter table staging_import add column if not exists sub_category    text;
 alter table staging_import add column if not exists additional_info text;
 
+-- v2 status vocabulary: "Lien Hold" (billing on lien, PIP on hold) → reserved.
+create or replace function import_pip_status(t text) returns text language sql immutable as $$
+  select case
+    when lower(trim(coalesce(t,''))) like 'paid%' then 'closed'
+    when lower(coalesce(t,'')) like 'exhaust%'     then 'exhausted'
+    when lower(coalesce(t,'')) like 'reserv%'      then 'reserved'
+    when lower(coalesce(t,'')) like 'open%'        then 'open'
+    when lower(coalesce(t,'')) like 'lien%'        then 'reserved'
+    else null end;
+$$;
+
 create or replace function normalize_import()
 returns table(cases_created int, firms_total int, rows_flagged int)
 language plpgsql as $$
@@ -67,9 +78,26 @@ begin
     v_doi  := import_parse_date(rec.doi_raw);
     v_dos  := import_parse_date(rec.first_dos_raw);   -- v2: real first treatment date
     v_las  := import_parse_date(rec.last_action_raw);
-    v_pip  := import_pip_status(rec.status_raw);
-    if v_pip is null then v_review := true; v_reason := v_reason || 'status-unrecognized; '; v_pip := 'open'; end if;
-    v_paid := import_is_paid(rec.status_raw);
+    if rec.source_tab ilike '%paid%' then
+      -- The tab itself means paid: force closed/collected. Odd cell values
+      -- (usually column-shifted pasted rows) get a distinct review flag so a
+      -- human checks the firm/carrier fields without losing the row.
+      v_paid := true; v_pip := 'closed';
+      if nullif(trim(rec.status_raw), '') is not null
+         and not import_is_paid(rec.status_raw) then
+        v_review := true; v_reason := v_reason || 'paid-tab-check-columns; ';
+      end if;
+    else
+      v_pip  := import_pip_status(rec.status_raw);
+      v_paid := import_is_paid(rec.status_raw);
+      if v_pip is null then
+        if nullif(trim(rec.status_raw), '') is null then
+          v_pip := 'open';   -- blank status = not yet worked; not a review flag
+        else
+          v_review := true; v_reason := v_reason || 'status-unrecognized; '; v_pip := 'open';
+        end if;
+      end if;
+    end if;
 
     -- Notes + the v2 "Additional information" column, kept together on the case.
     v_notes := nullif(concat_ws(' | ', nullif(trim(rec.notes), ''), nullif(trim(rec.additional_info), '')), '');
