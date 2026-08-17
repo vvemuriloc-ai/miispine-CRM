@@ -12,7 +12,8 @@ type Upload = (key: string, bytes: Uint8Array, contentType: string) => Promise<v
 const MAX_BYTES = 50 * 1024 * 1024;
 
 async function gcsUpload(key: string, bytes: Uint8Array, contentType: string) {
-  const { Storage } = await import("@google-cloud/storage");
+  const mod: any = await import("@google-cloud/storage");
+  const Storage = (mod.default ?? mod).Storage ?? mod.Storage; // CJS-under-import() safety
   await new Storage().bucket(config.recordsBucket).file(key).save(Buffer.from(bytes), { contentType });
 }
 

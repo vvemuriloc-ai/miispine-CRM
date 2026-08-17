@@ -13,7 +13,8 @@ export async function signDownloadUrl(key: string, ttlSec: number): Promise<stri
     return `https://mock.storage.local/${encodeURIComponent(key)}?ttl=${ttlSec}`;
   }
   if (!real) {
-    const { Storage } = await import("@google-cloud/storage");
+    const mod: any = await import("@google-cloud/storage");
+    const Storage = (mod.default ?? mod).Storage ?? mod.Storage; // CJS-under-import() safety
     const bucket = new Storage().bucket(config.recordsBucket);
     real = async (k, ttl) => {
       const [url] = await bucket.file(k).getSignedUrl({

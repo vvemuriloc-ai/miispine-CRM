@@ -19,7 +19,10 @@ export async function verifyToken(token: string): Promise<{ uid: string } | null
     const admin = await getFirebase();
     const decoded = await admin.auth().verifyIdToken(token);
     return { uid: decoded.uid };
-  } catch {
+  } catch (e) {
+    // Surface the reason in Cloud Run logs — a silent null here reads as a
+    // mystery 401 to the client.
+    console.error("verifyToken failed:", e instanceof Error ? e.message : e);
     return null;
   }
 }
@@ -27,7 +30,10 @@ export async function verifyToken(token: string): Promise<{ uid: string } | null
 let _fb: any;
 async function getFirebase() {
   if (!_fb) {
-    const admin = await import("firebase-admin");
+    // firebase-admin is CommonJS: under dynamic import() the real export
+    // surface lives on .default (the bare namespace has no .apps).
+    const mod: any = await import("firebase-admin");
+    const admin = mod.default ?? mod;
     if (!admin.apps.length) admin.initializeApp(); // Application Default Credentials on Cloud Run
     _fb = admin;
   }
