@@ -190,32 +190,51 @@ const tIdx = args.indexOf("--tabs");
 const ONLY_TABS = tIdx >= 0
   ? new Set(args[tIdx + 1].split(",").map((t) => t.trim().toLowerCase()).filter(Boolean))
   : null;
+// --headers-from "Tab Name": tabs with no header row of their own borrow the
+// named tab's column layout (for worklists whose header row was never typed).
+const hIdx = args.indexOf("--headers-from");
+const HEADERS_FROM = hIdx >= 0 ? args[hIdx + 1].trim().toLowerCase() : null;
+
+// Pass 1: parse every sheet and detect headers, so a headerless tab can
+// borrow a mapping regardless of tab order.
+const parsed = sheets.map((s) => ({ ...s, rows: parseSheet(s.path), found: null }));
+for (const p of parsed) p.found = findHeader(p.rows);
+
+let borrowMap = null;
+if (HEADERS_FROM) {
+  const src = parsed.find((p) => p.name.trim().toLowerCase() === HEADERS_FROM);
+  if (!src) { console.error(`ERROR: --headers-from tab "${args[hIdx + 1]}" not found in workbook`); process.exit(1); }
+  if (!src.found) { console.error(`ERROR: --headers-from tab "${src.name}" has no detectable header row`); process.exit(1); }
+  borrowMap = src.found.map;
+}
 
 const records = [];
 let lastMap = null;
 const layoutNotes = [];
-for (const s of sheets) {
-  if (ONLY_TABS && !ONLY_TABS.has(s.name.trim().toLowerCase())) {
-    layoutNotes.push(`${s.name}: SKIPPED (not in --tabs)`);
+for (const p of parsed) {
+  if (ONLY_TABS && !ONLY_TABS.has(p.name.trim().toLowerCase())) {
+    layoutNotes.push(`${p.name}: SKIPPED (not in --tabs)`);
     continue;
   }
-  const rows = parseSheet(s.path);
-  const found = findHeader(rows);
-  let map, dataStart;
-  if (found) {
-    map = found.map; dataStart = found.dataStart;
+  let map, dataStart, how;
+  if (p.found) {
+    map = p.found.map; dataStart = p.found.dataStart;
     lastMap = map;
-    layoutNotes.push(`${s.name}: header on row ${dataStart}, ${Object.keys(map).length} columns mapped`);
+    how = `header on row ${dataStart}, ${Object.keys(map).length} columns mapped`;
     const missing = ["patient_name", "charges_raw", "attorney"].filter((f) => !map[f]);
-    if (missing.length) console.error(`WARNING tab "${s.name}": could not find column(s): ${missing.join(", ")}`);
+    if (missing.length) console.error(`WARNING tab "${p.name}": could not find column(s): ${missing.join(", ")}`);
+  } else if (borrowMap) {
+    map = borrowMap; dataStart = 0;
+    how = `no header — using "${args[hIdx + 1]}" layout (--headers-from)`;
   } else {
     map = lastMap ?? LEGACY_POSITIONS;
     dataStart = 0;
-    layoutNotes.push(`${s.name}: NO HEADER FOUND — reusing ${lastMap ? "previous tab's mapping" : "legacy positions"} (verify this tab!)`);
+    how = `NO HEADER FOUND — reusing ${lastMap ? "previous tab's mapping" : "legacy positions"} (verify this tab!)`;
   }
-  rows.slice(dataStart).forEach((r, i) => {
+  layoutNotes.push(`${p.name}: ${how}`);
+  p.rows.slice(dataStart).forEach((r, i) => {
     if (!g(r, 0)) return;
-    const rec = { source_tab: s.name, source_row: i + 1 + dataStart };
+    const rec = { source_tab: p.name, source_row: i + 1 + dataStart };
     for (const f of ALL_FIELDS) rec[f] = pick(map, r, f);
     // Skip repeated header lines pasted into the data area.
     if (normHdr(rec.patient_name).startsWith("patientname")) return;
