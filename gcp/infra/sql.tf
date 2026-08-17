@@ -22,6 +22,7 @@ resource "google_sql_database_instance" "miicase" {
   depends_on          = [google_project_service.enabled]
 
   settings {
+    edition           = "ENTERPRISE" # standard edition supports custom tiers (Enterprise Plus does not)
     tier              = var.db_tier
     availability_type = "ZONAL" # switch to REGIONAL for HA once live
     disk_autoresize   = true
