@@ -175,29 +175,50 @@ const ALL_FIELDS = ["patient_name","pip_claim","doi_raw","charges_raw","first_do
   "medical_insurance","lien_on_file","pip_payer","attorney","status_raw","last_action_raw",
   "notes","category","sub_category","voice_mail","assigned_to","additional_info","faxed"];
 
+// The header row is not always row 1 (title rows above it are common) — scan
+// the first few rows for one that maps patient_name plus several other fields.
+function findHeader(rows) {
+  for (let r = 0; r < Math.min(rows.length, 8); r++) {
+    const map = mapHeader(rows[r]);
+    if (map.patient_name && Object.keys(map).length >= 4) return { map, dataStart: r + 1 };
+  }
+  return null;
+}
+
+// --tabs "Name1,Name2" imports only the named tabs (case-insensitive).
+const tIdx = args.indexOf("--tabs");
+const ONLY_TABS = tIdx >= 0
+  ? new Set(args[tIdx + 1].split(",").map((t) => t.trim().toLowerCase()).filter(Boolean))
+  : null;
+
 const records = [];
 let lastMap = null;
 const layoutNotes = [];
 for (const s of sheets) {
+  if (ONLY_TABS && !ONLY_TABS.has(s.name.trim().toLowerCase())) {
+    layoutNotes.push(`${s.name}: SKIPPED (not in --tabs)`);
+    continue;
+  }
   const rows = parseSheet(s.path);
-  const hasHeader = normHdr(g(rows[0] || [], 0)).startsWith("patientname");
-  let map;
-  if (hasHeader) {
-    map = mapHeader(rows[0]);
+  const found = findHeader(rows);
+  let map, dataStart;
+  if (found) {
+    map = found.map; dataStart = found.dataStart;
     lastMap = map;
-    const mapped = Object.keys(map).length;
-    layoutNotes.push(`${s.name}: header, ${mapped} columns mapped`);
-    const missing = ["patient_name","charges_raw","attorney"].filter((f) => !map[f]);
+    layoutNotes.push(`${s.name}: header on row ${dataStart}, ${Object.keys(map).length} columns mapped`);
+    const missing = ["patient_name", "charges_raw", "attorney"].filter((f) => !map[f]);
     if (missing.length) console.error(`WARNING tab "${s.name}": could not find column(s): ${missing.join(", ")}`);
   } else {
     map = lastMap ?? LEGACY_POSITIONS;
-    layoutNotes.push(`${s.name}: no header, reusing ${lastMap ? "previous tab's mapping" : "legacy positions"}`);
+    dataStart = 0;
+    layoutNotes.push(`${s.name}: NO HEADER FOUND — reusing ${lastMap ? "previous tab's mapping" : "legacy positions"} (verify this tab!)`);
   }
-  const data = hasHeader ? rows.slice(1) : rows;
-  data.forEach((r, i) => {
+  rows.slice(dataStart).forEach((r, i) => {
     if (!g(r, 0)) return;
-    const rec = { source_tab: s.name, source_row: i + 1 + (hasHeader ? 1 : 0) };
+    const rec = { source_tab: s.name, source_row: i + 1 + dataStart };
     for (const f of ALL_FIELDS) rec[f] = pick(map, r, f);
+    // Skip repeated header lines pasted into the data area.
+    if (normHdr(rec.patient_name).startsWith("patientname")) return;
     records.push(rec);
   });
 }
