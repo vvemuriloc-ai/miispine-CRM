@@ -26,7 +26,9 @@ sed -i "s#^const API_BASE = .*#const API_BASE = \"$API_URL\";#" "$TMP"
 sed -i "s#^const FIREBASE_CONFIG = .*#const FIREBASE_CONFIG = { apiKey: \"$APIKEY\", authDomain: \"$AUTHDOM\", projectId: \"$PROJECT\" };#" "$TMP"
 # Optional ModMed chart deep link: MM_CHART_URL="https://….ema.md/…/{id}" bash deploy.sh
 if [ -n "${MM_CHART_URL:-}" ]; then
-  sed -i "s#^const MM_CHART_URL = .*#const MM_CHART_URL = \"$MM_CHART_URL\";#" "$TMP"
+  # '|' delimiter: EMA chart URLs contain '#', which would break '#'-delimited sed.
+  sed -i "s|^const MM_CHART_URL = .*|const MM_CHART_URL = \"$MM_CHART_URL\";|" "$TMP"
+  grep -q "modmed\|ema" "$TMP" || { echo "chart URL injection failed"; exit 1; }
   echo "chart links → $MM_CHART_URL"
 fi
 grep -q "$API_URL" "$TMP" || { echo "injection failed"; exit 1; }
