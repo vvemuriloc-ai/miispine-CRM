@@ -6,6 +6,7 @@ RUN npm install --omit=dev --no-audit --no-fund
 COPY lib ./lib
 COPY modmed-sync ./modmed-sync
 COPY modmed-records ./modmed-records
+COPY modmed-link ./modmed-link
 COPY autopilot ./autopilot
 COPY server.ts ./
 ENV NODE_ENV=production PORT=8080
