@@ -5,6 +5,7 @@
 import pg from "pg";
 import { run as modmedSync } from "../modmed-sync/index.ts";
 import { run as modmedRecords } from "../modmed-records/index.ts";
+import { run as modmedLink } from "../modmed-link/index.ts";
 import { run as autopilot } from "../autopilot/index.ts";
 import { pool } from "../lib/db.ts";
 
@@ -75,6 +76,30 @@ async function main() {
   ok("2 files uploaded to bucket", uploads.length === 2, JSON.stringify(uploads));
   const recs = await oc.query("select record_type, status from records where emr_source='modmed' order by record_type");
   ok("both records uploaded status", recs.rows.length === 2 && recs.rows.every((r: any) => r.status === "uploaded"), JSON.stringify(recs.rows));
+
+  // 2b) modmed-link — name search links unique matches, reports the rest
+  await oc.query("insert into clients(id,first_name,last_name) values ('cccc2222-2222-2222-2222-222222222222','Uma','Unique'),('cccc3333-3333-3333-3333-333333333333','Andy','Ambig'),('cccc4444-4444-4444-4444-444444444444','Nora','Nowhere')");
+  await oc.query(`insert into cases(id,firm_id,client_id,claim_number) values
+    ('aaaa2222-2222-2222-2222-222222222222','f1111111-1111-1111-1111-111111111111','cccc2222-2222-2222-2222-222222222222','L1'),
+    ('aaaa3333-3333-3333-3333-333333333333','f1111111-1111-1111-1111-111111111111','cccc2222-2222-2222-2222-222222222222','L2'),
+    ('aaaa4444-4444-4444-4444-444444444444','f1111111-1111-1111-1111-111111111111','cccc3333-3333-3333-3333-333333333333','L3'),
+    ('aaaa5555-5555-5555-5555-555555555555','f1111111-1111-1111-1111-111111111111','cccc4444-4444-4444-4444-444444444444','L4')`);
+  const linkFetch = (url: string) => {
+    if (url.includes("oauth2/grant")) return token();
+    if (url.includes("/Patient")) {
+      if (url.includes("family=Unique")) return bundle([{ resourceType: "Patient", id: "PT-U1" }]);
+      if (url.includes("family=Ambig")) return bundle([{ resourceType: "Patient", id: "PT-A1" }, { resourceType: "Patient", id: "PT-A2" }]);
+      return bundle([]);
+    }
+    return new Response("{}", { status: 404 });
+  };
+  const link = await modmedLink({ fetchImpl: linkFetch as any });
+  ok("link: unique client linked (both cases)", link.linked === 1 && link.cases_linked === 2, JSON.stringify(link));
+  ok("link: ambiguous + not_found reported", link.ambiguous.length === 1 && link.not_found.length === 1);
+  const linked = await oc.query("select count(*)::int n from cases where emr_patient_id='PT-U1'");
+  ok("link: emr_patient_id written to both cases", linked.rows[0].n === 2);
+  const notLinked = await oc.query("select count(*)::int n from cases where id in ('aaaa4444-4444-4444-4444-444444444444','aaaa5555-5555-5555-5555-555555555555') and emr_patient_id is not null");
+  ok("link: ambiguous/none left unlinked", notLinked.rows[0].n === 0);
 
   // 3) autopilot — drafts + logs + schedules (mock Claude + send)
   const ap = await autopilot({ draftImpl: async () => ({ subject: "Status update on your client", body: "Following up." }), sendImpl: async () => true });

@@ -6,11 +6,13 @@ import http from "node:http";
 import { config } from "./lib/config.ts";
 import { run as modmedSync } from "./modmed-sync/index.ts";
 import { run as modmedRecords } from "./modmed-records/index.ts";
+import { run as modmedLink } from "./modmed-link/index.ts";
 import { run as autopilot } from "./autopilot/index.ts";
 
 const jobs: Record<string, () => Promise<unknown>> = {
   "modmed-sync": () => modmedSync(),
   "modmed-records": () => modmedRecords(),
+  "modmed-link": () => modmedLink(),   // manual: link cases ↔ ModMed patients
   "autopilot": () => autopilot(),
 };
 
