@@ -47,6 +47,7 @@ export async function getDashboard(c: pg.PoolClient) {
     `select c.id, c.claim_number, c.status, c.opened_at, c.followup_priority,
             c.last_outreach_at, c.next_followup_at, c.firm_id, c.review_status, c.review_reason,
             c.liability_carrier, c.health_insurance, c.assigned_to, c.date_of_injury,
+            c.emr_patient_id,
             f.name as firm_name, a.name as attorney_name, a.email as attorney_email,
             a.avg_response_days, a.preferred_contact,
             cl.first_name, cl.last_name, cl.hipaa_release_on_file
@@ -68,6 +69,7 @@ export async function getDashboard(c: pg.PoolClient) {
     review_status: r.review_status, review_reason: r.review_reason,
     liability_carrier: r.liability_carrier, health_insurance: r.health_insurance,
     assigned_to: r.assigned_to, date_of_injury: r.date_of_injury,
+    emr_patient_id: r.emr_patient_id,
     firm: { id: r.firm_id, name: r.firm_name },
     attorney: { name: r.attorney_name, email: r.attorney_email, avg_response_days: r.avg_response_days, preferred_contact: r.preferred_contact },
     client: { first_name: r.first_name, last_name: r.last_name, hipaa_release_on_file: r.hipaa_release_on_file },

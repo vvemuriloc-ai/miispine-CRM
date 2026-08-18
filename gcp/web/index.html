@@ -82,6 +82,10 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 .login-input:focus { border-color: var(--orange); }
 .login-btn { width: 100%; padding: 10px; background: var(--orange); color: white; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13.5px; font-weight: 600; cursor: pointer; margin-top: 4px; }
 .edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.mm-link { color: inherit; text-decoration: none; }
+.mm-link:hover .mm-tag-link { background: var(--orange); color: white; }
+.mm-tag-link { display: inline-block; padding: 1px 6px; margin-left: 4px; background: rgba(217,119,66,0.12); color: var(--orange); border-radius: 5px; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-decoration: none; vertical-align: 2px; }
+.mm-tag-link:hover { background: var(--orange); color: white; }
 .review-ok { text-align: center; padding: 50px 20px; color: var(--green); font-size: 14px; }
 
 /* MEDICAL RECORDS */
@@ -296,6 +300,12 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 const API_BASE = "";          // e.g. https://miicase-api-xxxx.a.run.app
 const FIREBASE_CONFIG = { apiKey: "", authDomain: "", projectId: "" };
 const CONFIGURED = () => !!(API_BASE && FIREBASE_CONFIG.apiKey);
+// ModMed chart deep-link template; {id} is replaced with the case's EMR
+// patient id (e.g. "https://miispine.ema.md/ema/web/#/patient/{id}").
+// Leave empty to hide chart links. Injected by gcp/web/deploy.sh.
+const MM_CHART_URL = "";
+const chartUrl = (c) => (MM_CHART_URL && c.emrPatientId)
+  ? MM_CHART_URL.replace("{id}", encodeURIComponent(c.emrPatientId)) : null;
 
 // ---- Demo dataset (mirrors supabase/seed.sql + imported rows) ----
 // Outstanding lien per bill = max(0, billed − pip_paid − ins_paid); it is
@@ -485,6 +495,7 @@ function mapCaseRow(row) {
     carrier: row.liability_carrier || "",
     healthIns: row.health_insurance || "",
     assignedTo: row.assigned_to || "",
+    emrPatientId: row.emr_patient_id || null,
     hipaa: !!client.hipaa_release_on_file,
     records: (row.records || []).map((r) => ({
       id: r.id, type: r.record_type, status: r.status, filename: r.filename, file: !!(r.has_file || r.storage_key),
@@ -787,7 +798,7 @@ function renderCases() {
     caseFilter === "all" ? true : caseFilter === "done" ? DONE.includes(c.status) : !DONE.includes(c.status));
   const rows = list.slice().sort((a, b) => b.balance - a.balance).map((c) => `
     <tr data-case="${c.id}" onclick="selectCase('${c.id}')">
-      <td><div class="name-primary">${c.patient}</div><div class="name-sub">${c.claim}</div></td>
+      <td><div class="name-primary">${c.patient}${chartUrl(c) ? ` <a class="mm-tag-link" href="${chartUrl(c)}" target="_blank" rel="noopener" title="Open in ModMed" onclick="event.stopPropagation()">MM ↗</a>` : ""}</div><div class="name-sub">${c.claim}</div></td>
       <td>${c.firmName}<div class="name-sub">${c.atty.name}</div></td>
       <td><span class="badge status-badge">${c.status.replace(/_/g, " ")}</span></td>
       <td class="right num">${fmt(c.balance)}</td>
@@ -1266,7 +1277,9 @@ function renderDetail() {
   panel.innerHTML = `
     <div class="detail-header">
       <span class="badge pri-${c.priority}">${c.priority}</span>
-      <div class="detail-name">${c.patient}</div>
+      <div class="detail-name">${chartUrl(c)
+        ? `<a class="mm-link" href="${chartUrl(c)}" target="_blank" rel="noopener" title="Open this patient's chart in ModMed">${c.patient} <span class="mm-tag-link">MM ↗</span></a>`
+        : c.patient}</div>
       <div class="detail-meta">
         <div class="dm-row"><span class="dml">Claim</span><span class="dmv">${c.claim || "—"}</span></div>
         <div class="dm-row"><span class="dml">Firm</span><span class="dmv">${c.firmName}</span></div>

@@ -24,6 +24,11 @@ TMP=$(mktemp /tmp/miicase-web-XXXX.html)
 cp "$(dirname "$0")/index.html" "$TMP"
 sed -i "s#^const API_BASE = .*#const API_BASE = \"$API_URL\";#" "$TMP"
 sed -i "s#^const FIREBASE_CONFIG = .*#const FIREBASE_CONFIG = { apiKey: \"$APIKEY\", authDomain: \"$AUTHDOM\", projectId: \"$PROJECT\" };#" "$TMP"
+# Optional ModMed chart deep link: MM_CHART_URL="https://….ema.md/…/{id}" bash deploy.sh
+if [ -n "${MM_CHART_URL:-}" ]; then
+  sed -i "s#^const MM_CHART_URL = .*#const MM_CHART_URL = \"$MM_CHART_URL\";#" "$TMP"
+  echo "chart links → $MM_CHART_URL"
+fi
 grep -q "$API_URL" "$TMP" || { echo "injection failed"; exit 1; }
 
 gsutil -h "Cache-Control:no-cache" cp "$TMP" "gs://$BUCKET/index.html"
