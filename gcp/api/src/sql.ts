@@ -46,6 +46,7 @@ export async function getDashboard(c: pg.PoolClient) {
   const cases = (await c.query(
     `select c.id, c.claim_number, c.status, c.opened_at, c.followup_priority,
             c.last_outreach_at, c.next_followup_at, c.firm_id, c.review_status, c.review_reason,
+            c.liability_carrier, c.health_insurance, c.assigned_to, c.date_of_injury,
             f.name as firm_name, a.name as attorney_name, a.email as attorney_email,
             a.avg_response_days, a.preferred_contact,
             cl.first_name, cl.last_name, cl.hipaa_release_on_file
@@ -65,6 +66,8 @@ export async function getDashboard(c: pg.PoolClient) {
     followup_priority: r.followup_priority, last_outreach_at: r.last_outreach_at,
     next_followup_at: r.next_followup_at, firm_id: r.firm_id,
     review_status: r.review_status, review_reason: r.review_reason,
+    liability_carrier: r.liability_carrier, health_insurance: r.health_insurance,
+    assigned_to: r.assigned_to, date_of_injury: r.date_of_injury,
     firm: { id: r.firm_id, name: r.firm_name },
     attorney: { name: r.attorney_name, email: r.attorney_email, avg_response_days: r.avg_response_days, preferred_contact: r.preferred_contact },
     client: { first_name: r.first_name, last_name: r.last_name, hipaa_release_on_file: r.hipaa_release_on_file },
@@ -140,16 +143,70 @@ export async function voidInvoice(c: pg.PoolClient, id: string) {
   return (await c.query("select * from invoices_view where id=$1", [id])).rows[0];
 }
 
-// ---- Case update: status + review fields (firm-or-staff; RLS enforces) ----
+// ---- Case update: status/review + editable case fields (firm-or-staff) ----
 export async function updateCase(c: pg.PoolClient, id: string, b: any) {
   const r = await c.query(
     `update cases set
-       status        = coalesce($2, status),
-       review_status = coalesce($3, review_status),
-       review_reason = coalesce($4, review_reason)
-     where id=$1 returning id, status, review_status, review_reason`,
-    [id, b.status ?? null, b.review_status ?? null, b.review_reason ?? null]);
+       status            = coalesce($2, status),
+       review_status     = coalesce($3, review_status),
+       review_reason     = coalesce($4, review_reason),
+       claim_number      = coalesce($5, claim_number),
+       liability_carrier = coalesce($6, liability_carrier),
+       health_insurance  = coalesce($7, health_insurance),
+       assigned_to       = coalesce($8, assigned_to),
+       notes             = coalesce($9, notes)
+     where id=$1 returning id, status, review_status, review_reason, claim_number,
+       liability_carrier, health_insurance, assigned_to`,
+    [id, b.status ?? null, b.review_status ?? null, b.review_reason ?? null,
+     b.claim_number ?? null, b.liability_carrier ?? null, b.health_insurance ?? null,
+     b.assigned_to ?? null, b.notes ?? null]);
   return r.rows[0] ?? null;
+}
+
+// ---- New case (staff): firm resolved/deduped by import key, client by name,
+// case + PIP ledger + optional initial bill. Runs inside withTenant's txn.
+export async function createCase(c: pg.PoolClient, b: any) {
+  let firm = await c.query(
+    "select id from firms where import_firm_key(name) = import_firm_key($1) limit 1", [b.firm_name]);
+  if (!firm.rows.length) {
+    firm = await c.query("insert into firms (name) values ($1) returning id", [b.firm_name.trim()]);
+  }
+  const firmId = firm.rows[0].id;
+
+  let client = await c.query(
+    "select id from clients where lower(last_name)=lower($1) and lower(coalesce(first_name,''))=lower($2) limit 1",
+    [b.last_name.trim(), (b.first_name ?? "").trim()]);
+  if (!client.rows.length) {
+    client = await c.query(
+      "insert into clients (first_name, last_name) values ($1,$2) returning id",
+      [(b.first_name ?? "").trim(), b.last_name.trim()]);
+  }
+  const clientId = client.rows[0].id;
+
+  const kase = await c.query(
+    `insert into cases (firm_id, client_id, claim_number, date_of_injury, liability_carrier,
+                        health_insurance, status, opened_at, followup_priority)
+     values ($1,$2,$3,$4,$5,$6,'active', coalesce($7::date, $4::date, current_date), 'normal')
+     returning id`,
+    [firmId, clientId, b.claim_number ?? null, b.doi ?? null, b.liability_carrier ?? null,
+     b.health_insurance ?? null, b.first_dos ?? null]);
+  const caseId = kase.rows[0].id;
+
+  await c.query(
+    `insert into pip_ledger (case_id, firm_id, carrier, claim_number, status, total_available, total_paid)
+     values ($1,$2,$3,$4,'open',10000,0) on conflict (case_id) do nothing`,
+    [caseId, firmId, b.liability_carrier ?? null, b.claim_number ?? null]);
+
+  const charges = Number(b.charges ?? 0);
+  if (charges > 0) {
+    await c.query(
+      `insert into medical_bills (case_id, firm_id, provider_id, date_of_service, description,
+                                  billed_amount, pip_paid, insurance_paid, bill_status)
+       values ($1,$2, emr_miispine_provider(), coalesce($3::date, $4::date, current_date),
+               'Charges', $5, 0, 0, 'outstanding')`,
+      [caseId, firmId, b.first_dos ?? null, b.doi ?? null, charges]);
+  }
+  return { id: caseId, firm_id: firmId, client_id: clientId };
 }
 
 export async function updateBill(c: pg.PoolClient, id: string, b: any) {

@@ -77,11 +77,20 @@ export const routes: Route[] = [
       return row;
     } },
 
-  // Update a case: status (reconciliation) and/or review state (firm-or-staff).
+  // Update a case: status, review state, and editable fields (firm-or-staff).
   { method: "PATCH", path: "/api/cases/:id", auth: true, h: async (ctx, client) => {
       const row = await q.updateCase(client, ctx.params.id, ctx.body ?? {});
       if (!row) throw new HttpError(404, "case not found or not permitted");
       return row;
+    } },
+
+  // New case (staff): resolves/creates the firm (deduped) and client, opens the
+  // case + PIP ledger, and books the initial charges as a bill.
+  { method: "POST", path: "/api/cases", auth: true, h: async (ctx, client) => {
+      if (!ctx.profile.isStaff) throw new HttpError(403, "staff only");
+      const b = ctx.body ?? {};
+      if (!b.last_name || !b.firm_name) throw new HttpError(400, "last_name and firm_name required");
+      return q.createCase(client, b);
     } },
 
   // The ONLY path to a record file: firm ownership (RLS) + HIPAA release +

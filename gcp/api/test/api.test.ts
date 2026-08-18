@@ -152,6 +152,24 @@ async function main() {
   ok("att1 resolves own case review", rev.review_status === "resolved", JSON.stringify(rev));
   ok("att2 cannot review F1 case", (await att2("PATCH", `/api/cases/${C1}`, { review_status: "resolved" })).status === 404);
 
+  // --- case management: create (staff), edit fields, settle ---
+  ok("attorney cannot create a case", (await att1("POST", "/api/cases", { last_name: "New", firm_name: "Firm One" })).status === 403);
+  const created = await (await staff("POST", "/api/cases", {
+    first_name: "Nina", last_name: "Newcase", claim_number: "NC-1",
+    firm_name: "firm one, PLLC",   // dedupes onto existing "Firm One"
+    liability_carrier: "State Farm", charges: 12000, doi: "2026-05-01", first_dos: "2026-05-10",
+  })).json();
+  ok("staff creates case in deduped firm", created.firm_id === F1, JSON.stringify(created));
+  const ncase = await (await staff("GET", `/api/cases/${created.id}`)).json();
+  ok("new case has initial bill + lien", Number(ncase.total_billed) === 12000 && Number(ncase.balance_outstanding) === 12000, JSON.stringify({ b: ncase.total_billed }));
+  ok("new case DOS from first_dos", ncase.bills[0].date_of_service.startsWith("2026-05-10"));
+
+  const edited = await (await staff("PATCH", `/api/cases/${created.id}`, { claim_number: "NC-2", liability_carrier: "Progressive", assigned_to: "VV" })).json();
+  ok("case fields editable", edited.claim_number === "NC-2" && edited.liability_carrier === "Progressive" && edited.assigned_to === "VV", JSON.stringify(edited));
+
+  const settled = await (await staff("PATCH", `/api/cases/${created.id}`, { status: "settled" })).json();
+  ok("mark settled", settled.status === "settled");
+
   server.close();
   const { pool } = await import("../src/db.ts");
   await pool.end();
