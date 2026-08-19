@@ -498,6 +498,7 @@ function mapCaseRow(row) {
     healthIns: row.health_insurance || "",
     assignedTo: row.assigned_to || "",
     emrPatientId: row.emr_patient_id || null,
+    pmBalance: row.emr_pm_balance == null ? null : +row.emr_pm_balance,
     hipaa: !!client.hipaa_release_on_file,
     records: (row.records || []).map((r) => ({
       id: r.id, type: r.record_type, status: r.status, filename: r.filename, file: !!(r.has_file || r.storage_key),
@@ -1319,6 +1320,10 @@ function renderDetail() {
       <div class="math-row"><span class="lbl">Other liens</span><span class="val">${fmt(c.otherLiens)}</span></div>
       <div class="math-row"><span class="lbl">Collected to date</span><span class="val">${fmt(c.collected)}</span></div>
       <div class="math-row total"><span class="lbl">Balance outstanding</span><span class="val">${fmt(c.balance)}</span></div>
+      ${c.pmBalance != null ? (() => {
+        const drift = Math.abs(c.pmBalance - c.balance) >= 1;
+        return `<div class="math-row"><span class="lbl">ModMed PM balance ${drift ? '<span class="badge" style="background:rgba(192,57,43,0.12);color:var(--red)">drift</span>' : '<span class="badge" style="background:rgba(46,125,90,0.12);color:var(--green)">matches</span>'}</span><span class="val">${fmt(c.pmBalance)}</span></div>`;
+      })() : ""}
     </div>
 
     ${recordsSection(c)}

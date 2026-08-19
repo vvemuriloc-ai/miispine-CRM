@@ -26,17 +26,16 @@ async function seed() {
   await c.end();
 }
 
-// ---- ModMed AR fixtures ----
+// ---- ModMed AR fixtures (ChargeItem + Account — the resources ModMed ships) ----
 const chargeFetch = (url: string) => {
   if (url.includes("oauth2/grant")) return token();
   if (url.includes("/ChargeItem")) return bundle([
     { resourceType: "ChargeItem", id: "CI-1", status: "billable", code: { text: "ACDF", coding: [{ system: "http://www.ama-assn.org/go/cpt", code: "22551" }] }, subject: { reference: "Patient/PT-1001" }, occurrenceDateTime: "2026-03-01", priceOverride: { value: 40000, currency: "USD" } },
     { resourceType: "ChargeItem", id: "CI-2", status: "billable", code: { text: "ESI", coding: [{ code: "64483" }] }, subject: { reference: "Patient/PT-1001" }, occurrenceDateTime: "2026-04-01", priceOverride: { value: 10000, currency: "USD" } },
   ]);
-  if (url.includes("/Invoice")) return bundle([]);
-  if (url.includes("/PaymentReconciliation")) return bundle([
-    { resourceType: "PaymentReconciliation", id: "PR-1", requestor: { reference: "Patient/PT-1001" }, paymentDate: "2026-05-01", detail: [{ type: { text: "PIP payment" }, amount: { value: 10000, currency: "USD" }, date: "2026-05-01" }] },
-    { resourceType: "PaymentReconciliation", id: "PR-2", requestor: { reference: "Patient/PT-1001" }, paymentDate: "2026-06-01", detail: [{ type: { text: "BCBS insurance" }, amount: { value: 8000, currency: "USD" }, date: "2026-06-01" }] },
+  if (url.includes("/Account")) return bundle([
+    { resourceType: "Account", id: "ACC-1", subject: [{ reference: "Patient/PT-1001" }],
+      extension: [{ url: "https://api.modmed.com/fhir/extension/account-balance", valueMoney: { value: 31500, currency: "USD" } }] },
   ]);
   return new Response("{}", { status: 404 });
 };
@@ -55,17 +54,21 @@ const docFetch = (url: string) => {
 async function main() {
   await seed();
 
-  // 1) modmed-sync — charges + payments → bills, waterfall lien
+  // 1) modmed-sync — charges → bills (gross lien), Account → PM balance
   const sync = await modmedSync({ fetchImpl: chargeFetch as any });
   ok("sync upserted 2 charges", sync.reconciled.charges_upserted === 2, JSON.stringify(sync.reconciled));
+  ok("account balance applied to case", sync.balances_applied === 1, JSON.stringify(sync));
   const oc = new pg.Client({ connectionString: OWNER }); await oc.connect();
   const b1 = await oc.query("select lien_amount, pip_paid, insurance_paid from medical_bills where emr_charge_id='CI-1'");
-  ok("CI-1 lien 22000 (40000-10000-8000)", Number(b1.rows[0].lien_amount) === 22000, JSON.stringify(b1.rows[0]));
-  const ct = await oc.query("select total_lien from cases where id='aaaa1111-1111-1111-1111-111111111111'");
-  ok("case total_lien 32000", Number(ct.rows[0].total_lien) === 32000, JSON.stringify(ct.rows[0]));
+  ok("CI-1 lien = billed (no API payments)", Number(b1.rows[0].lien_amount) === 40000, JSON.stringify(b1.rows[0]));
+  const ct = await oc.query("select total_lien, emr_pm_balance from cases where id='aaaa1111-1111-1111-1111-111111111111'");
+  ok("case total_lien 50000, PM balance 31500", Number(ct.rows[0].total_lien) === 50000 && Number(ct.rows[0].emr_pm_balance) === 31500, JSON.stringify(ct.rows[0]));
 
-  // idempotent re-run: no dup bills
+  // staff reconcile a payment manually, then re-run: manual values must survive
+  await oc.query("update medical_bills set pip_paid=10000 where emr_charge_id='CI-1'");
   await modmedSync({ fetchImpl: chargeFetch as any });
+  const b1b = await oc.query("select pip_paid, lien_amount from medical_bills where emr_charge_id='CI-1'");
+  ok("re-run preserves manual reconciliation", Number(b1b.rows[0].pip_paid) === 10000 && Number(b1b.rows[0].lien_amount) === 30000, JSON.stringify(b1b.rows[0]));
   const cnt = await oc.query("select count(*)::int n from medical_bills where emr_source='modmed'");
   ok("re-run no duplicate bills", cnt.rows[0].n === 2, JSON.stringify(cnt.rows[0]));
 
