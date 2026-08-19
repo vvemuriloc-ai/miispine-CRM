@@ -157,12 +157,13 @@ export async function updateCase(c: pg.PoolClient, id: string, b: any) {
        liability_carrier = coalesce($6, liability_carrier),
        health_insurance  = coalesce($7, health_insurance),
        assigned_to       = coalesce($8, assigned_to),
-       notes             = coalesce($9, notes)
+       notes             = coalesce($9, notes),
+       emr_patient_id    = coalesce($10, emr_patient_id)
      where id=$1 returning id, status, review_status, review_reason, claim_number,
-       liability_carrier, health_insurance, assigned_to`,
+       liability_carrier, health_insurance, assigned_to, emr_patient_id`,
     [id, b.status ?? null, b.review_status ?? null, b.review_reason ?? null,
      b.claim_number ?? null, b.liability_carrier ?? null, b.health_insurance ?? null,
-     b.assigned_to ?? null, b.notes ?? null]);
+     b.assigned_to ?? null, b.notes ?? null, b.emr_patient_id ?? null]);
   return r.rows[0] ?? null;
 }
 

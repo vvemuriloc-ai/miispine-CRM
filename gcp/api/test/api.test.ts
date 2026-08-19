@@ -167,6 +167,10 @@ async function main() {
   const edited = await (await staff("PATCH", `/api/cases/${created.id}`, { claim_number: "NC-2", liability_carrier: "Progressive", assigned_to: "VV" })).json();
   ok("case fields editable", edited.claim_number === "NC-2" && edited.liability_carrier === "Progressive" && edited.assigned_to === "VV", JSON.stringify(edited));
 
+  // manual ModMed link (the ambiguous/not_found remediation path)
+  const emrLinked = await (await staff("PATCH", `/api/cases/${created.id}`, { emr_patient_id: "14986741" })).json();
+  ok("case manually linked to ModMed patient", emrLinked.emr_patient_id === "14986741", JSON.stringify(emrLinked));
+
   const settled = await (await staff("PATCH", `/api/cases/${created.id}`, { status: "settled" })).json();
   ok("mark settled", settled.status === "settled");
 

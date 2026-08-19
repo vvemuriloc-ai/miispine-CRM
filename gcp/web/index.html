@@ -1354,6 +1354,10 @@ function renderDetail() {
         <div class="recon-field"><label>PIP carrier</label><input id="ed-carrier" value="${(c.carrier || "").replace(/"/g, "&quot;")}"></div>
         <div class="recon-field"><label>Health insurance</label><input id="ed-hins" value="${(c.healthIns || "").replace(/"/g, "&quot;")}"></div>
         <div class="recon-field"><label>Assigned to</label><input id="ed-assigned" value="${(c.assignedTo || "").replace(/"/g, "&quot;")}"></div>
+        <div class="recon-field full">
+          <label>ModMed chart ${c.emrPatientId ? `<span class="badge" style="background:rgba(46,125,90,0.12);color:var(--green);margin-left:4px">linked</span>` : `<span class="badge" style="background:rgba(192,57,43,0.12);color:var(--red);margin-left:4px">not linked</span>`}</label>
+          <input id="ed-emr" placeholder="Paste patient ID or chart URL from ModMed" value="${c.emrPatientId || ""}">
+        </div>
       </div>
       <div class="recon-actions">
         <button class="btn-save" onclick="saveCaseDetails('${c.id}')">Save details</button>
@@ -1377,10 +1381,21 @@ function renderDetail() {
     </div>`;
 }
 
+// Accepts a bare ModMed patient id or a full chart URL and extracts the id
+// (the numeric segment after "/patient/" — matches the {id} in MM_CHART_URL).
+function extractEmrPatientId(raw) {
+  const s = (raw || "").trim();
+  if (!s) return null;
+  const m = s.match(/\/patient\/(\d+)/i);
+  if (m) return m[1];
+  return /^\d+$/.test(s) ? s : s;  // fall back to whatever was typed
+}
+
 window.saveCaseDetails = async (id) => {
   const v = (x) => document.getElementById(x).value.trim() || null;
   const body = { claim_number: v("ed-claim"), liability_carrier: v("ed-carrier"),
-                 health_insurance: v("ed-hins"), assigned_to: v("ed-assigned") };
+                 health_insurance: v("ed-hins"), assigned_to: v("ed-assigned"),
+                 emr_patient_id: extractEmrPatientId(v("ed-emr")) };
   if (LIVE) {
     try { await api(`/api/cases/${id}`, { method: "PATCH", body: JSON.stringify(body) });
       await loadData(); selectCase(id); toast("Case updated");
