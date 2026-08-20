@@ -98,7 +98,7 @@ resource "google_cloud_run_v2_service" "jobs" {
       min_instance_count = 0
       max_instance_count = 2
     }
-    timeout = "900s" # long enough for a nightly sync over many patients
+    timeout = "1800s" # records sync does one read per document (~3k) on top of per-patient searches
     volumes {
       name = "cloudsql"
       cloud_sql_instance {
