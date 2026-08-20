@@ -41,7 +41,15 @@ const chargeFetch = (url: string) => {
 };
 
 // ---- ModMed records fixtures ----
-const docFetch = (url: string) => {
+// Header capture per URL, so the test can assert the real bug ModMed's docs
+// exposed: a pre-signed S3 attachment URL must NOT get our ModMed Bearer/
+// x-api-key headers (S3 rejects the signature if we do); a relative,
+// ModMed-hosted path must still get them.
+const capturedHeaders: Record<string, string[]> = {};
+const S3_URL = "https://mock-s3.example.com/bucket/EMA_visit_final.pdf?X-Amz-Signature=abc&X-Amz-Expires=300";
+
+const docFetch = (url: string, opts?: any) => {
+  capturedHeaders[url] = Object.keys(opts?.headers ?? {});
   if (url.includes("oauth2/grant")) return token();
   if (url.includes("/DocumentReference")) return bundle([
     { resourceType: "DocumentReference", id: "DOC-1", status: "current", type: { coding: [{ system: "http://loinc.org", code: "11504-8" }], text: "Operative Report" }, subject: { reference: "Patient/PT-1001" }, date: "2026-03-02", content: [{ attachment: { contentType: "application/pdf", url: "Binary/bin-1", title: "op_note.pdf" } }] },
@@ -50,8 +58,11 @@ const docFetch = (url: string) => {
     { resourceType: "DocumentReference", id: "DOC-3", status: "current", category: [{ text: "Attachment" }], subject: { reference: "Patient/PT-1001" }, date: "2026-04-01", content: [{ attachment: { contentType: "application/pdf", data: btoa("attach-bytes"), title: "outside_record.pdf" } }] },
     // Clinical-note shape actually seen on the live tenant: no content[] at all.
     { resourceType: "DocumentReference", id: "DOC-4", status: "current", type: { text: "Progress Note" }, subject: { reference: "Patient/PT-1001" }, date: "2026-04-05" },
+    // Pre-signed S3 attachment URL — the exact shape ModMed's docs showed.
+    { resourceType: "DocumentReference", id: "DOC-5", status: "current", category: [{ text: "Attachment" }], subject: { reference: "Patient/PT-1001" }, date: "2026-04-10", content: [{ attachment: { contentType: "application/pdf", url: S3_URL, title: "EMA_visit_final.pdf" } }] },
   ]);
   if (url.includes("/Binary/bin-1")) return new Response(Buffer.from("%PDF-1.4 fake"));
+  if (url === S3_URL) return new Response(Buffer.from("%PDF-1.4 s3-fake"));
   return new Response("{}", { status: 404 });
 };
 
@@ -79,17 +90,28 @@ async function main() {
   // 2) modmed-records — DocumentReference → GCS upload → records
   const uploads: string[] = [];
   const rec = await modmedRecords({ fetchImpl: docFetch as any, uploadImpl: async (key) => { uploads.push(key); } });
-  ok("records upserted 4", rec.reconciled.records_upserted === 4, JSON.stringify(rec.reconciled));
-  ok("3 files uploaded (DOC-1,2,3 have real attachments; DOC-4 a note does not)", uploads.length === 3, JSON.stringify(uploads));
+  ok("records upserted 5", rec.reconciled.records_upserted === 5, JSON.stringify(rec.reconciled));
+  ok("4 files uploaded (DOC-1,2,3,5 have real attachments; DOC-4 a note does not)", uploads.length === 4, JSON.stringify(uploads));
   ok("attachment summary distinguishes category from usable file",
-    rec.attachment_summary.total_docs === 4 &&
-    rec.attachment_summary.with_usable_attachment === 3 &&
-    rec.attachment_summary.attachment_category_docs === 1 &&
-    rec.attachment_summary.attachment_category_with_usable_attachment === 1,
+    rec.attachment_summary.total_docs === 5 &&
+    rec.attachment_summary.with_usable_attachment === 4 &&
+    rec.attachment_summary.attachment_category_docs === 2 &&
+    rec.attachment_summary.attachment_category_with_usable_attachment === 2,
     JSON.stringify(rec.attachment_summary));
   const recs = await oc.query("select record_type, status from records where emr_source='modmed'");
-  ok("3 uploaded, 1 received (no file)", recs.rows.filter((r: any) => r.status === "uploaded").length === 3
+  ok("4 uploaded, 1 received (no file)", recs.rows.filter((r: any) => r.status === "uploaded").length === 4
     && recs.rows.filter((r: any) => r.status === "received").length === 1, JSON.stringify(recs.rows));
+
+  // The real bug ModMed's docs surfaced: a pre-signed S3 URL must NOT carry
+  // our ModMed auth headers (breaks the S3 signature); a relative ModMed path
+  // (resolved against MODMED_BASE_URL before fetching) must still carry them.
+  const binaryKey = Object.keys(capturedHeaders).find((k) => k.endsWith("/Binary/bin-1"));
+  ok("relative Binary path gets ModMed auth headers",
+    !!binaryKey && capturedHeaders[binaryKey].includes("Authorization") && capturedHeaders[binaryKey].includes("x-api-key"),
+    JSON.stringify(binaryKey && capturedHeaders[binaryKey]));
+  ok("pre-signed S3 URL gets NO auth headers",
+    Array.isArray(capturedHeaders[S3_URL]) && capturedHeaders[S3_URL].length === 0,
+    JSON.stringify(capturedHeaders[S3_URL]));
 
   // 2b) modmed-link — name search links unique matches, reports the rest
   await oc.query("insert into clients(id,first_name,last_name) values ('cccc2222-2222-2222-2222-222222222222','Uma','Unique'),('cccc3333-3333-3333-3333-333333333333','Andy','Ambig'),('cccc4444-4444-4444-4444-444444444444','Nora','Nowhere')");

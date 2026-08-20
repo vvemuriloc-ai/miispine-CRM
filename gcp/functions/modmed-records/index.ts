@@ -34,8 +34,15 @@ async function gcsUpload(key: string, bytes: Uint8Array, contentType: string) {
 
 async function fetchBytes(token: string, att: any, fetchImpl: FetchLike): Promise<Uint8Array> {
   if (att.data) return Uint8Array.from(atob(att.data), (c) => c.charCodeAt(0));
-  const url = att.url.startsWith("http") ? att.url : `${config.modmed.baseUrl}/${att.url.replace(/^\//, "")}`;
-  const res = await fetchImpl(url, { headers: { ...authHeaders(token), Accept: att.contentType || "application/octet-stream" } });
+  const isAbsolute = /^https?:\/\//i.test(att.url);
+  const url = isAbsolute ? att.url : `${config.modmed.baseUrl}/${att.url.replace(/^\//, "")}`;
+  // ModMed's DocumentReference.content[].attachment.url is often a pre-signed
+  // S3 link (query-string auth, ~5min expiry). Sending our ModMed Bearer/
+  // x-api-key headers alongside a pre-signed URL breaks S3's signature check
+  // (SignatureDoesNotMatch) — those headers belong only on ModMed-hosted
+  // relative paths, never on an already-authenticated absolute URL.
+  const headers = isAbsolute ? {} : { ...authHeaders(token), Accept: att.contentType || "application/octet-stream" };
+  const res = await fetchImpl(url, { headers });
   if (!res.ok) throw new Error(`binary ${res.status}`);
   const buf = new Uint8Array(await res.arrayBuffer());
   if (buf.byteLength > MAX_BYTES) throw new Error(`binary too large (${buf.byteLength})`);
