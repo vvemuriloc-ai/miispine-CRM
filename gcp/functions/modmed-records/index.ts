@@ -3,6 +3,13 @@
 // Storage. The DocumentReference mappers (fhir.js) are unchanged;
 // reconcile_emr_records() (migration 0011) does the DB work. fetch + upload are
 // injectable for integration testing.
+//
+// ModMed confirmed (support thread, Aug 2026): GET DocumentReference?patient=X
+// (search) never includes content[] — it's a summary listing. The real
+// attachment (often a pre-signed S3 url, ~5min expiry) only appears on an
+// individual GET DocumentReference/{id}. So every document without a usable
+// attachment from the search result gets one extra bounded-concurrency read
+// before we decide there's nothing to download.
 import { q, insertRows } from "../lib/db.ts";
 import { config } from "../lib/config.ts";
 import { modmedToken, fhirGetAll, authHeaders, type FetchLike } from "../lib/fhir-client.ts";
@@ -10,6 +17,7 @@ import { mapDocumentReference, bundleResources, nextLink } from "./fhir.js";
 
 type Upload = (key: string, bytes: Uint8Array, contentType: string) => Promise<void>;
 const MAX_BYTES = 50 * 1024 * 1024;
+const ENRICH_CONCURRENCY = 6;
 
 // Does this raw DocumentReference's type/category look like ModMed's UI
 // "Attachments" grouping (as opposed to a clinical note)? Text-matching only,
@@ -24,6 +32,28 @@ function looksLikeAttachmentCategory(raw: any): boolean {
   push(raw?.type);
   for (const cat of raw?.category ?? []) push(cat);
   return /attach/i.test(bits.join(" "));
+}
+
+// Bounded-concurrency map — 2900+ documents means 2900+ individual reads;
+// neither fully sequential nor fully unbounded parallel is appropriate here.
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+async function fetchDocumentById(token: string, id: string, fetchImpl: FetchLike): Promise<any | null> {
+  const url = `${config.modmed.baseUrl}/DocumentReference/${encodeURIComponent(id)}`;
+  const res = await fetchImpl(url, { headers: { ...authHeaders(token), Accept: "application/fhir+json" } });
+  if (!res.ok) return null;
+  return res.json();
 }
 
 async function gcsUpload(key: string, bytes: Uint8Array, contentType: string) {
@@ -68,22 +98,14 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
     // "Attachments" (distinct from clinical notes), per a user report that
     // those may carry a real, retrievable file even where notes don't.
     let withUsableAttachment = 0, attachCategoryDocs = 0, attachCategoryWithFile = 0;
+    let enrichAttempted = 0, enrichFailed = 0;
 
     for (const [pid, caseId] of caseByPatient) {
       const docs = await fhirGetAll(token, `/DocumentReference?patient=${encodeURIComponent(pid)}`, bundleResources, nextLink, fetchImpl);
-      const mapped = docs.map(mapDocumentReference).filter((d: any) => d && d.emr_document_id);
-      seen += mapped.length;
-
-      for (const raw of docs) {
-        const m = mapDocumentReference(raw);
-        if (!m || !m.emr_document_id) continue;
-        const hasFile = !!m._attachment;
-        if (hasFile) withUsableAttachment++;
-        if (looksLikeAttachmentCategory(raw)) {
-          attachCategoryDocs++;
-          if (hasFile) attachCategoryWithFile++;
-        }
-      }
+      const entries = docs
+        .map((raw: any) => ({ raw, m: mapDocumentReference(raw) }))
+        .filter((e: any) => e.m && e.m.emr_document_id);
+      seen += entries.length;
 
       // One-time diagnostic: field NAMES only (never values — no PHI) from the
       // first document's raw content[]/attachment, so a missing-attachment
@@ -99,15 +121,37 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
         shapeLogged = true;
       }
 
-      const ids = mapped.map((d: any) => d.emr_document_id);
+      const ids = entries.map((e: any) => e.m.emr_document_id);
       const already = new Set<string>();
       if (ids.length) {
         const have = await q("select emr_document_id from records where emr_document_id = any($1) and storage_key is not null", [ids]);
         for (const r of have.rows) already.add(r.emr_document_id);
       }
 
+      // Search results never carry content[] — enrich every not-yet-uploaded
+      // document with one individual read to get the real attachment.
+      const toEnrich = entries.filter((e: any) => !e.m._attachment && !already.has(e.m.emr_document_id));
+      enrichAttempted += toEnrich.length;
+      await mapLimit(toEnrich, ENRICH_CONCURRENCY, async (e: any) => {
+        try {
+          const full = await fetchDocumentById(token, e.m.emr_document_id, fetchImpl);
+          const remapped = full && mapDocumentReference(full);
+          if (remapped?._attachment) e.m = remapped;
+          else enrichFailed++;
+        } catch { enrichFailed++; }
+      });
+
+      for (const { raw, m } of entries) {
+        const hasFile = !!m._attachment;
+        if (hasFile) withUsableAttachment++;
+        if (looksLikeAttachmentCategory(raw)) {
+          attachCategoryDocs++;
+          if (hasFile) attachCategoryWithFile++;
+        }
+      }
+
       const staged: any[] = [];
-      for (const d of mapped) {
+      for (const { m: d } of entries) {
         let storage_key: string | null = null;
         if (!config.modmed.dryRun && d._attachment && !already.has(d.emr_document_id)) {
           try {
@@ -129,6 +173,8 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
       with_usable_attachment: withUsableAttachment,
       attachment_category_docs: attachCategoryDocs,
       attachment_category_with_usable_attachment: attachCategoryWithFile,
+      enrich_attempted: enrichAttempted,
+      enrich_failed: enrichFailed,
     };
     console.log("DocumentReference attachment summary:", JSON.stringify(attachmentSummary));
 
