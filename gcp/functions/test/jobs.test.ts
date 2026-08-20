@@ -46,6 +46,10 @@ const docFetch = (url: string) => {
   if (url.includes("/DocumentReference")) return bundle([
     { resourceType: "DocumentReference", id: "DOC-1", status: "current", type: { coding: [{ system: "http://loinc.org", code: "11504-8" }], text: "Operative Report" }, subject: { reference: "Patient/PT-1001" }, date: "2026-03-02", content: [{ attachment: { contentType: "application/pdf", url: "Binary/bin-1", title: "op_note.pdf" } }] },
     { resourceType: "DocumentReference", id: "DOC-2", status: "current", type: { coding: [{ code: "18748-4" }] }, subject: { reference: "Patient/PT-1001" }, date: "2026-02-15", content: [{ attachment: { contentType: "image/jpeg", data: btoa("jpegbytes") } }] },
+    // "Attachment"-category doc WITH a real file (tests the attachment_category_* counters).
+    { resourceType: "DocumentReference", id: "DOC-3", status: "current", category: [{ text: "Attachment" }], subject: { reference: "Patient/PT-1001" }, date: "2026-04-01", content: [{ attachment: { contentType: "application/pdf", data: btoa("attach-bytes"), title: "outside_record.pdf" } }] },
+    // Clinical-note shape actually seen on the live tenant: no content[] at all.
+    { resourceType: "DocumentReference", id: "DOC-4", status: "current", type: { text: "Progress Note" }, subject: { reference: "Patient/PT-1001" }, date: "2026-04-05" },
   ]);
   if (url.includes("/Binary/bin-1")) return new Response(Buffer.from("%PDF-1.4 fake"));
   return new Response("{}", { status: 404 });
@@ -75,10 +79,17 @@ async function main() {
   // 2) modmed-records — DocumentReference → GCS upload → records
   const uploads: string[] = [];
   const rec = await modmedRecords({ fetchImpl: docFetch as any, uploadImpl: async (key) => { uploads.push(key); } });
-  ok("records upserted 2", rec.reconciled.records_upserted === 2, JSON.stringify(rec.reconciled));
-  ok("2 files uploaded to bucket", uploads.length === 2, JSON.stringify(uploads));
-  const recs = await oc.query("select record_type, status from records where emr_source='modmed' order by record_type");
-  ok("both records uploaded status", recs.rows.length === 2 && recs.rows.every((r: any) => r.status === "uploaded"), JSON.stringify(recs.rows));
+  ok("records upserted 4", rec.reconciled.records_upserted === 4, JSON.stringify(rec.reconciled));
+  ok("3 files uploaded (DOC-1,2,3 have real attachments; DOC-4 a note does not)", uploads.length === 3, JSON.stringify(uploads));
+  ok("attachment summary distinguishes category from usable file",
+    rec.attachment_summary.total_docs === 4 &&
+    rec.attachment_summary.with_usable_attachment === 3 &&
+    rec.attachment_summary.attachment_category_docs === 1 &&
+    rec.attachment_summary.attachment_category_with_usable_attachment === 1,
+    JSON.stringify(rec.attachment_summary));
+  const recs = await oc.query("select record_type, status from records where emr_source='modmed'");
+  ok("3 uploaded, 1 received (no file)", recs.rows.filter((r: any) => r.status === "uploaded").length === 3
+    && recs.rows.filter((r: any) => r.status === "received").length === 1, JSON.stringify(recs.rows));
 
   // 2b) modmed-link — name search links unique matches, reports the rest
   await oc.query("insert into clients(id,first_name,last_name) values ('cccc2222-2222-2222-2222-222222222222','Uma','Unique'),('cccc3333-3333-3333-3333-333333333333','Andy','Ambig'),('cccc4444-4444-4444-4444-444444444444','Nora','Nowhere')");
