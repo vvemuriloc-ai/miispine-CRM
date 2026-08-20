@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # ============================================================
-# miiCase — deploy the dashboard to the public GCS bucket.
+# miiCase — deploy the dashboard.
 # Run in Cloud Shell from the repo root:  bash gcp/web/deploy.sh
 # Fetches the live API URL + Firebase web config, injects them into a copy of
-# index.html, and uploads it. Idempotent; no secrets involved (the Firebase
-# apiKey is a public client identifier).
+# index.html, and deploys to Firebase Hosting (miicase-prod.web.app — supports
+# a custom miispine.com domain with managed HTTPS) AND the legacy GCS bucket.
+# Idempotent; no secrets involved (the Firebase apiKey is a public client id).
+# Skip either target with TARGET=firebase or TARGET=gcs.
 # ============================================================
 set -euo pipefail
 PROJECT=${PROJECT:-miicase-prod}
@@ -33,6 +35,24 @@ if [ -n "${MM_CHART_URL:-}" ]; then
 fi
 grep -q "$API_URL" "$TMP" || { echo "injection failed"; exit 1; }
 
-gsutil -h "Cache-Control:no-cache" cp "$TMP" "gs://$BUCKET/index.html"
+TARGET=${TARGET:-all}
+
+if [ "$TARGET" = "all" ] || [ "$TARGET" = "gcs" ]; then
+  gsutil -h "Cache-Control:no-cache" cp "$TMP" "gs://$BUCKET/index.html"
+  echo "deployed → https://storage.googleapis.com/$BUCKET/index.html"
+fi
+
+if [ "$TARGET" = "all" ] || [ "$TARGET" = "firebase" ]; then
+  if command -v firebase >/dev/null; then
+    DIST="$(dirname "$0")/dist"
+    mkdir -p "$DIST"
+    cp "$TMP" "$DIST/index.html"
+    (cd "$(dirname "$0")" && firebase deploy --only hosting --project "$PROJECT" --non-interactive)
+    rm -rf "$DIST"
+    echo "deployed → https://$PROJECT.web.app (plus any custom domains)"
+  else
+    echo "firebase CLI not found — skipped Firebase Hosting (npm i -g firebase-tools)"
+  fi
+fi
+
 rm -f "$TMP"
-echo "deployed → https://storage.googleapis.com/$BUCKET/index.html"
