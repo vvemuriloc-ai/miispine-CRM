@@ -110,6 +110,11 @@ resource "google_cloud_run_v2_service" "jobs" {
       ports {
         container_port = 8080
       }
+      resources {
+        # Records sync holds up to 6 concurrent downloads (≤50MB each) in
+        # memory — the 512Mi default OOM-kills the container mid-run.
+        limits = { cpu = "2", memory = "2Gi" }
+      }
       volume_mounts {
         name       = "cloudsql"
         mount_path = "/cloudsql"
