@@ -128,17 +128,30 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
         for (const r of have.rows) already.add(r.emr_document_id);
       }
 
-      // Search results never carry content[] — enrich every not-yet-uploaded
-      // document with one individual read to get the real attachment.
-      const toEnrich = entries.filter((e: any) => !e.m._attachment && !already.has(e.m.emr_document_id));
-      enrichAttempted += toEnrich.length;
-      await mapLimit(toEnrich, ENRICH_CONCURRENCY, async (e: any) => {
-        try {
-          const full = await fetchDocumentById(token, e.m.emr_document_id, fetchImpl);
-          const remapped = full && mapDocumentReference(full);
-          if (remapped?._attachment) e.m = remapped;
-          else enrichFailed++;
-        } catch { enrichFailed++; }
+      // Search results never carry content[] — each not-yet-uploaded document
+      // gets one individual read for the real attachment, then downloads
+      // IMMEDIATELY: the attachment url is a ~5-minute pre-signed link, so
+      // enriching a whole batch up front and downloading later would hand us
+      // expired urls for document-heavy patients.
+      await mapLimit(entries, ENRICH_CONCURRENCY, async (e: any) => {
+        const skip = already.has(e.m.emr_document_id);
+        if (!e.m._attachment && !skip) {
+          enrichAttempted++;
+          try {
+            const full = await fetchDocumentById(token, e.m.emr_document_id, fetchImpl);
+            const remapped = full && mapDocumentReference(full);
+            if (remapped?._attachment) e.m = remapped;
+            else enrichFailed++;
+          } catch { enrichFailed++; }
+        }
+        if (!config.modmed.dryRun && e.m._attachment && !skip) {
+          try {
+            const bytes = await fetchBytes(token, e.m._attachment, fetchImpl);
+            const key = `emr/${caseId}/${e.m.emr_document_id}-${e.m.filename}`.replace(/\s+/g, "_");
+            await uploadImpl(key, bytes, e.m.mime_type || "application/octet-stream");
+            e.storage_key = key; uploaded++;
+          } catch { fetchErrors++; }
+        }
       });
 
       for (const { raw, m } of entries) {
@@ -151,18 +164,9 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
       }
 
       const staged: any[] = [];
-      for (const { m: d } of entries) {
-        let storage_key: string | null = null;
-        if (!config.modmed.dryRun && d._attachment && !already.has(d.emr_document_id)) {
-          try {
-            const bytes = await fetchBytes(token, d._attachment, fetchImpl);
-            const key = `emr/${caseId}/${d.emr_document_id}-${d.filename}`.replace(/\s+/g, "_");
-            await uploadImpl(key, bytes, d.mime_type || "application/octet-stream");
-            storage_key = key; uploaded++;
-          } catch { fetchErrors++; }
-        }
-        const { _attachment, ...rest } = d;
-        staged.push({ ...rest, storage_key, sync_run_id: runId });
+      for (const e of entries) {
+        const { _attachment, ...rest } = e.m;
+        staged.push({ ...rest, storage_key: e.storage_key ?? null, sync_run_id: runId });
       }
       await insertRows("emr_record_staging",
         ["sync_run_id", "emr_document_id", "emr_patient_id", "record_type", "doc_date", "description", "filename", "mime_type", "storage_key", "status_raw"], staged);
