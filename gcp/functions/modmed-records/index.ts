@@ -39,12 +39,27 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
     const caseByPatient = new Map<string, string>(cs.rows.map((r: any) => [r.emr_patient_id, r.id]));
 
     const token = await modmedToken(fetchImpl);
-    let seen = 0, uploaded = 0, fetchErrors = 0;
+    let seen = 0, uploaded = 0, fetchErrors = 0, noAttachment = 0, shapeLogged = false;
 
     for (const [pid, caseId] of caseByPatient) {
       const docs = await fhirGetAll(token, `/DocumentReference?patient=${encodeURIComponent(pid)}`, bundleResources, nextLink, fetchImpl);
       const mapped = docs.map(mapDocumentReference).filter((d: any) => d && d.emr_document_id);
       seen += mapped.length;
+      for (const d of mapped) if (!d._attachment) noAttachment++;
+
+      // One-time diagnostic: field NAMES only (never values — no PHI) from the
+      // first document's raw content[]/attachment, so a missing-attachment
+      // pattern is visible without exposing patient data.
+      if (!shapeLogged && docs.length) {
+        const raw = docs[0];
+        const content0 = raw?.content?.[0] ?? {};
+        console.log("DocumentReference shape (field names only):", JSON.stringify({
+          topLevelKeys: Object.keys(raw ?? {}),
+          contentKeys: Object.keys(content0),
+          attachmentKeys: Object.keys(content0.attachment ?? {}),
+        }));
+        shapeLogged = true;
+      }
 
       const ids = mapped.map((d: any) => d.emr_document_id);
       const already = new Set<string>();
@@ -76,7 +91,7 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
       "update emr_sync_run set status=$2, records_seen=$3, records_upserted=$4, files_uploaded=$5, cases_touched=$6, unmatched=$7, error=$8, finished_at=now() where id=$1",
       [runId, config.modmed.dryRun ? "dry_run" : "ok", seen, reconciled.records_upserted, uploaded,
         reconciled.cases_touched, reconciled.unmatched, fetchErrors ? `${fetchErrors} document(s) failed to download` : null]);
-    return { run_id: runId, dry_run: config.modmed.dryRun, documents_seen: seen, files_uploaded: uploaded, fetch_errors: fetchErrors, reconciled };
+    return { run_id: runId, dry_run: config.modmed.dryRun, documents_seen: seen, no_attachment: noAttachment, files_uploaded: uploaded, fetch_errors: fetchErrors, reconciled };
   } catch (e) {
     await q("update emr_sync_run set status='error', error=$2, finished_at=now() where id=$1",
       [runId, e instanceof Error ? e.message : String(e)]);
