@@ -62,6 +62,9 @@ const searchDocs = [
   { resourceType: "DocumentReference", id: "DOC-5", status: "current", category: [{ text: "Attachment" }], subject: { reference: "Patient/PT-1001" }, date: "2026-04-10" },
   // ModMed document ids can contain a pipe — must be encodeURIComponent'd.
   { resourceType: "DocumentReference", id: "file|259103741", status: "current", category: [{ text: "Attachment" }], subject: { reference: "Patient/PT-1001" }, date: "2026-04-12" },
+  // Generated office note: no contentType from ModMed, bytes are HTML —
+  // the sync must sniff the real type instead of storing ".bin".
+  { resourceType: "DocumentReference", id: "DOC-7", status: "current", type: { text: "Office Visit" }, subject: { reference: "Patient/PT-1001" }, date: "2026-04-15", description: "Office Visit Note" },
 ];
 
 // GET DocumentReference/{id} responses — the real attachment only appears here.
@@ -73,6 +76,7 @@ const fullDocs: Record<string, any> = {
   "DOC-4": { resourceType: "DocumentReference", id: "DOC-4", status: "current", subject: { reference: "Patient/PT-1001" }, date: "2026-04-05" },
   "DOC-5": { resourceType: "DocumentReference", id: "DOC-5", status: "current", category: [{ text: "Attachment" }], subject: { reference: "Patient/PT-1001" }, date: "2026-04-10", content: [{ attachment: { contentType: "application/pdf", url: S3_URL, title: "EMA_visit_final.pdf" } }] },
   "file|259103741": { resourceType: "DocumentReference", id: "file|259103741", status: "current", category: [{ text: "Attachment" }], subject: { reference: "Patient/PT-1001" }, date: "2026-04-12", content: [{ attachment: { contentType: "application/pdf", url: "Binary/bin-pipe", title: "pipe_id.pdf" } }] },
+  "DOC-7": { resourceType: "DocumentReference", id: "DOC-7", status: "current", type: { text: "Office Visit" }, subject: { reference: "Patient/PT-1001" }, date: "2026-04-15", description: "Office Visit Note", content: [{ attachment: { url: "Binary/bin-note" } }] },
 };
 
 const docFetch = (url: string, opts?: any) => {
@@ -86,6 +90,7 @@ const docFetch = (url: string, opts?: any) => {
   }
   if (url.includes("/Binary/bin-1")) return new Response(Buffer.from("%PDF-1.4 fake"));
   if (url.includes("/Binary/bin-pipe")) return new Response(Buffer.from("%PDF-1.4 pipe-fake"));
+  if (url.includes("/Binary/bin-note")) return new Response(Buffer.from("<html><body>note narrative</body></html>"));
   if (url === S3_URL) return new Response(Buffer.from("%PDF-1.4 s3-fake"));
   return new Response("{}", { status: 404 });
 };
@@ -113,20 +118,31 @@ async function main() {
 
   // 2) modmed-records — DocumentReference search → individual-read enrichment → GCS upload → records
   const uploads: string[] = [];
-  const rec = await modmedRecords({ fetchImpl: docFetch as any, uploadImpl: async (key) => { uploads.push(key); } });
-  ok("records upserted 6", rec.reconciled.records_upserted === 6, JSON.stringify(rec.reconciled));
-  ok("5 files uploaded (DOC-1,2,3,5,pipe-id have real attachments; DOC-4 a note does not)", uploads.length === 5, JSON.stringify(uploads));
+  const uploadTypes: Record<string, string> = {};
+  const capUpload = async (key: string, _b: Uint8Array, ct: string) => { uploads.push(key); uploadTypes[key] = ct; };
+  const rec = await modmedRecords({ fetchImpl: docFetch as any, uploadImpl: capUpload });
+  ok("records upserted 7", rec.reconciled.records_upserted === 7, JSON.stringify(rec.reconciled));
+  ok("6 files uploaded (DOC-4 a bare note has none)", uploads.length === 6, JSON.stringify(uploads));
   ok("attachment summary distinguishes category from usable file, post-enrichment",
-    rec.attachment_summary.total_docs === 6 &&
-    rec.attachment_summary.with_usable_attachment === 5 &&
+    rec.attachment_summary.total_docs === 7 &&
+    rec.attachment_summary.with_usable_attachment === 6 &&
     rec.attachment_summary.attachment_category_docs === 3 &&
     rec.attachment_summary.attachment_category_with_usable_attachment === 3 &&
-    rec.attachment_summary.enrich_attempted === 6 &&
+    rec.attachment_summary.enrich_attempted === 7 &&
     rec.attachment_summary.enrich_failed === 1,
     JSON.stringify(rec.attachment_summary));
   const recs = await oc.query("select record_type, status from records where emr_source='modmed'");
-  ok("5 uploaded, 1 received (no file)", recs.rows.filter((r: any) => r.status === "uploaded").length === 5
+  ok("6 uploaded, 1 received (no file)", recs.rows.filter((r: any) => r.status === "uploaded").length === 6
     && recs.rows.filter((r: any) => r.status === "received").length === 1, JSON.stringify(recs.rows));
+
+  // Byte-sniffing: an untyped note whose bytes are HTML stores as .html with
+  // the true content type — never ".bin opened as code".
+  const noteKey = uploads.find((k) => k.includes("DOC-7"));
+  ok("untyped HTML note sniffed → .html + text/html",
+    !!noteKey && noteKey.endsWith(".html") && uploadTypes[noteKey] === "text/html",
+    JSON.stringify([noteKey, noteKey && uploadTypes[noteKey]]));
+  const noteRow = await oc.query("select filename from records where emr_document_id='DOC-7'");
+  ok("sniffed extension lands in records.filename", /\.html$/.test(noteRow.rows[0]?.filename ?? ""), JSON.stringify(noteRow.rows));
 
   // The real bug ModMed's docs surfaced: a pre-signed S3 URL must NOT carry
   // our ModMed auth headers (breaks the S3 signature); a relative ModMed path
@@ -157,11 +173,17 @@ async function main() {
   // read (they already have a storage_key) — only the never-uploaded note
   // (DOC-4) should still be attempted, and nothing should be re-uploaded.
   const uploads2: string[] = [];
-  const rec2 = await modmedRecords({ fetchImpl: docFetch as any, uploadImpl: async (key) => { uploads2.push(key); } });
+  const rec2 = await modmedRecords({ fetchImpl: docFetch as any, uploadImpl: async (key: string) => { uploads2.push(key); } });
   ok("re-run skips enrichment for already-uploaded docs",
     rec2.attachment_summary.enrich_attempted === 1 && rec2.attachment_summary.enrich_failed === 1,
     JSON.stringify(rec2.attachment_summary));
   ok("re-run uploads nothing new", uploads2.length === 0, JSON.stringify(uploads2));
+  // The production regression this guards: a metadata-only re-run stages
+  // placeholder filenames (search results carry no title) and must NOT
+  // downgrade the accurate name written by the run that downloaded the file.
+  const post = await oc.query("select emr_document_id, filename from records where emr_document_id in ('DOC-1','DOC-7')");
+  const fn = Object.fromEntries(post.rows.map((r: any) => [r.emr_document_id, r.filename]));
+  ok("re-run preserves downloaded filenames", fn["DOC-1"] === "op_note.pdf" && /\.html$/.test(fn["DOC-7"] ?? ""), JSON.stringify(fn));
 
   // 2b) modmed-link — name search links unique matches, reports the rest
   await oc.query("insert into clients(id,first_name,last_name) values ('cccc2222-2222-2222-2222-222222222222','Uma','Unique'),('cccc3333-3333-3333-3333-333333333333','Andy','Ambig'),('cccc4444-4444-4444-4444-444444444444','Nora','Nowhere')");

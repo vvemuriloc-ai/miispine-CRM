@@ -135,7 +135,7 @@ export const routes: Route[] = [
       // browser renders instead of re-downloading.
       const inline = !!ctx.body?.inline;
       const ext = String(rec.filename ?? "").split(".").pop()?.toLowerCase();
-      const viewType = ({ pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", txt: "text/plain", html: "text/html" } as Record<string, string>)[ext ?? ""] ?? "application/pdf";
+      const viewType = ({ pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", tif: "image/tiff", txt: "text/plain", html: "text/html", xml: "text/xml" } as Record<string, string>)[ext ?? ""] ?? "application/pdf";
       const url = await signDownloadUrl(rec.storage_key, config.signedUrlTtlSec, { inline, contentType: inline ? viewType : null });
       return { url, expires_in: config.signedUrlTtlSec };
     } },

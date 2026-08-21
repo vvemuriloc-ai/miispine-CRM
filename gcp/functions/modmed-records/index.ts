@@ -56,6 +56,24 @@ async function fetchDocumentById(token: string, id: string, fetchImpl: FetchLike
   return res.json();
 }
 
+// ModMed's attachment contentType is often absent or wrong: scanned files are
+// real PDFs, but generated office/procedure notes arrive as HTML or clinical
+// XML mislabeled (or unlabeled → ".bin"), which then "open as code". Identify
+// the actual format from the first bytes and store the true type + extension.
+export function sniffType(bytes: Uint8Array): { mime: string; ext: string } | null {
+  const b = bytes;
+  if (b.length < 4) return null;
+  if (b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return { mime: "application/pdf", ext: "pdf" };
+  if (b[0] === 0x89 && b[1] === 0x50) return { mime: "image/png", ext: "png" };
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return { mime: "image/jpeg", ext: "jpg" };
+  if ((b[0] === 0x49 && b[1] === 0x49 && b[2] === 0x2a) || (b[0] === 0x4d && b[1] === 0x4d && b[2] === 0x00)) return { mime: "image/tiff", ext: "tif" };
+  const head = new TextDecoder("utf-8", { fatal: false }).decode(b.slice(0, 512)).replace(/^﻿/, "").trimStart().toLowerCase();
+  if (head.startsWith("{\\rtf")) return { mime: "application/rtf", ext: "rtf" };
+  if (head.startsWith("<?xml") || head.startsWith("<clinicaldocument")) return { mime: "text/xml", ext: "xml" };
+  if (head.startsWith("<!doctype html") || head.startsWith("<html")) return { mime: "text/html", ext: "html" };
+  return null;
+}
+
 async function gcsUpload(key: string, bytes: Uint8Array, contentType: string) {
   const mod: any = await import("@google-cloud/storage");
   const Storage = (mod.default ?? mod).Storage ?? mod.Storage; // CJS-under-import() safety
@@ -150,6 +168,12 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
         if (!config.modmed.dryRun && e.m._attachment && !skip) {
           try {
             const bytes = await fetchBytes(token, e.m._attachment, fetchImpl);
+            // Trust the bytes over ModMed's (often missing/wrong) contentType.
+            const sniffed = sniffType(bytes);
+            if (sniffed) {
+              e.m.mime_type = sniffed.mime;
+              e.m.filename = String(e.m.filename || e.m.emr_document_id).replace(/\.[A-Za-z0-9]{1,5}$/, "") + "." + sniffed.ext;
+            }
             const key = `emr/${caseId}/${e.m.emr_document_id}-${e.m.filename}`.replace(/\s+/g, "_");
             await uploadImpl(key, bytes, e.m.mime_type || "application/octet-stream");
             e.storage_key = key; uploaded++;
