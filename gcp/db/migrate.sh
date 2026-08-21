@@ -10,6 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."   # repo root
 INSTANCE="miicase-prod:us-east1:miicase-pg"
+DBNAME="miicase"   # the app schema lives here, NOT in the default postgres db
 PORT=9470
 
 if [ $# -lt 1 ]; then
@@ -34,6 +35,6 @@ for i in $(seq 1 20); do
   sleep 1
 done
 
-PGPASSWORD="$PW" psql -h 127.0.0.1 -p "$PORT" -U postgres -d postgres \
+PGPASSWORD="$PW" psql -h 127.0.0.1 -p "$PORT" -U postgres -d "$DBNAME" \
   -v ON_ERROR_STOP=1 -f "gcp/db/migrations/$FILE"
 echo "done: $FILE"
