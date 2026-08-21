@@ -109,3 +109,10 @@ psql "$DATABASE_URL" -f gcp/db/test_rls.sql   # prove firm isolation
 **The re-platform is code-complete** — DB, API, storage, jobs, frontend, and infra
 are all built and (except the live cloud apply) tested. What remains is running
 the runbook against your project once billing + the BAA are in place.
+
+## CI/CD
+
+Pushes to this repo's deploy branch trigger Cloud Build (`cloudbuild.yaml`):
+both Cloud Run images are rebuilt and deployed to us-east1, and the
+config-injected dashboard is published to Firebase Hosting and the GCS
+bucket. Watch runs under Cloud Build → History in the `miicase-prod` project.
