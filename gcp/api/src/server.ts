@@ -14,13 +14,20 @@ const compiled: Compiled[] = routes.map((r) => {
   return { ...r, re, keys };
 });
 
-function cors(res: http.ServerResponse) {
-  res.setHeader("Access-Control-Allow-Origin", config.corsOrigin);
+// CORS_ORIGIN may be "*" or a comma-separated allowlist (custom domain +
+// .web.app fallback). With a list, the matching request origin is echoed
+// back; a non-listed origin gets no CORS header, so the browser blocks it.
+const corsAllowed = config.corsOrigin.split(",").map((s) => s.trim()).filter(Boolean);
+function cors(req: http.IncomingMessage, res: http.ServerResponse) {
+  const origin = String(req.headers.origin ?? "");
+  const value = corsAllowed.includes("*") ? "*" : corsAllowed.includes(origin) ? origin : null;
+  if (value) res.setHeader("Access-Control-Allow-Origin", value);
+  if (value !== "*") res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Headers", "authorization, content-type");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
 }
-function send(res: http.ServerResponse, status: number, body: unknown) {
-  cors(res);
+function send(req: http.IncomingMessage, res: http.ServerResponse, status: number, body: unknown) {
+  cors(req, res);
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(body));
 }
@@ -36,13 +43,13 @@ async function readBody(req: http.IncomingMessage): Promise<any> {
 export function buildServer() {
   return http.createServer(async (req, res) => {
     try {
-      if (req.method === "OPTIONS") { cors(res); res.writeHead(204); return res.end(); }
+      if (req.method === "OPTIONS") { cors(req, res); res.writeHead(204); return res.end(); }
       const url = new URL(req.url ?? "/", "http://localhost");
 
-      if (req.method === "GET" && url.pathname === "/api/health") return send(res, 200, { ok: true });
+      if (req.method === "GET" && url.pathname === "/api/health") return send(req, res, 200, { ok: true });
 
       const match = compiled.find((r) => r.method === req.method && r.re.test(url.pathname));
-      if (!match) return send(res, 404, { error: "not found" });
+      if (!match) return send(req, res, 404, { error: "not found" });
 
       const m = match.re.exec(url.pathname)!;
       const params: Record<string, string> = {};
@@ -52,18 +59,18 @@ export function buildServer() {
       // --- auth + tenant ---
       const bearer = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
       const tok = await verifyToken(bearer);
-      if (!tok) return send(res, 401, { error: "unauthenticated" });
+      if (!tok) return send(req, res, 401, { error: "unauthenticated" });
       const profile = await loadProfile(tok.uid);
-      if (!profile) return send(res, 403, { error: "no profile — user not assigned to a firm" });
+      if (!profile) return send(req, res, 403, { error: "no profile — user not assigned to a firm" });
 
       const ctx: Ctx = { params, query: url.searchParams, body, profile };
       const tenant = { uid: profile.uid, firmId: profile.firmId, isStaff: profile.isStaff };
       const result = await withTenant(tenant, (client) => match.h(ctx, client));
-      return send(res, 200, result);
+      return send(req, res, 200, result);
     } catch (e) {
-      if (e instanceof HttpError) return send(res, e.status, { error: e.message });
+      if (e instanceof HttpError) return send(req, res, e.status, { error: e.message });
       console.error("unhandled", e);
-      return send(res, 500, { error: "internal error" });
+      return send(req, res, 500, { error: "internal error" });
     }
   });
 }
