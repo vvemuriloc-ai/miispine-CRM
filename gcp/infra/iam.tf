@@ -67,3 +67,35 @@ resource "google_secret_manager_secret_iam_member" "jobs_external" {
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.jobs.email}"
 }
+
+# ============================================================
+# CI/CD: the Cloud Build trigger runs as the default compute service
+# account and needs to (re)deploy both Cloud Run services, publish the
+# dashboard, and act as the runtime service accounts it deploys.
+# ============================================================
+data "google_project" "this" {}
+
+locals {
+  build_sa = "serviceAccount:${data.google_project.this.number}-compute@developer.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "build_run" {
+  project = var.project_id
+  role    = "roles/run.developer"
+  member  = local.build_sa
+}
+resource "google_project_iam_member" "build_firebase" {
+  project = var.project_id
+  role    = "roles/firebasehosting.admin"
+  member  = local.build_sa
+}
+resource "google_service_account_iam_member" "build_as_api" {
+  service_account_id = google_service_account.api.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = local.build_sa
+}
+resource "google_service_account_iam_member" "build_as_jobs" {
+  service_account_id = google_service_account.jobs.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = local.build_sa
+}

@@ -1,0 +1,85 @@
+# ============================================================
+# miiCase — CI/CD: build + deploy everything on push.
+# Wired to a Cloud Build GitHub trigger (see gcp/infra/RUNBOOK.md → CI/CD).
+# Deploys: miicase-api and miicase-jobs (Cloud Run, us-east1), then the
+# dashboard (config-injected index.html) to Firebase Hosting + the GCS bucket.
+# Terraform still owns service config (env/secrets/memory); these deploys only
+# swap the image, matching the manual `gcloud run deploy --image` flow.
+# ============================================================
+substitutions:
+  _REGION: us-east1
+  _WEB_BUCKET: miicase-app-703055817910
+  _MM_CHART_URL: "https://miispine.modmedapp.com/ema/web/practice/staff/#/practice/staff/patient/{id}/chart/overview"
+
+steps:
+  - id: build-api
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "gcr.io/$PROJECT_ID/miicase-api:$COMMIT_SHA", "-t", "gcr.io/$PROJECT_ID/miicase-api:latest", "gcp/api"]
+
+  - id: build-jobs
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "gcr.io/$PROJECT_ID/miicase-jobs:$COMMIT_SHA", "-t", "gcr.io/$PROJECT_ID/miicase-jobs:latest", "gcp/functions"]
+    waitFor: ["-"]
+
+  - id: push-api
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "--all-tags", "gcr.io/$PROJECT_ID/miicase-api"]
+    waitFor: ["build-api"]
+
+  - id: push-jobs
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "--all-tags", "gcr.io/$PROJECT_ID/miicase-jobs"]
+    waitFor: ["build-jobs"]
+
+  - id: deploy-api
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args: ["run", "deploy", "miicase-api", "--image", "gcr.io/$PROJECT_ID/miicase-api:$COMMIT_SHA", "--region", "${_REGION}", "--quiet"]
+    waitFor: ["push-api"]
+
+  - id: deploy-jobs
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args: ["run", "deploy", "miicase-jobs", "--image", "gcr.io/$PROJECT_ID/miicase-jobs:$COMMIT_SHA", "--region", "${_REGION}", "--quiet"]
+    waitFor: ["push-jobs"]
+
+  # Inject the live API URL + Firebase web config into the dashboard, upload
+  # to the legacy GCS bucket, and stage gcp/web/dist for Firebase Hosting.
+  # (python3, not jq — jq isn't in the slim cloud-sdk image.)
+  - id: web-prep
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    waitFor: ["deploy-api"]
+    args:
+      - -ceu
+      - |
+        API_URL=$$(gcloud run services describe miicase-api --region "${_REGION}" --format='value(status.url)')
+        TOKEN=$$(gcloud auth print-access-token)
+        APPID=$$(curl -s -H "Authorization: Bearer $$TOKEN" \
+          "https://firebase.googleapis.com/v1beta1/projects/$PROJECT_ID/webApps" \
+          | python3 -c 'import json,sys; print(json.load(sys.stdin)["apps"][0]["appId"])')
+        CFG=$$(curl -s -H "Authorization: Bearer $$TOKEN" \
+          "https://firebase.googleapis.com/v1beta1/projects/$PROJECT_ID/webApps/$$APPID/config")
+        APIKEY=$$(echo "$$CFG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["apiKey"])')
+        AUTHDOM=$$(echo "$$CFG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["authDomain"])')
+        mkdir -p gcp/web/dist
+        cp gcp/web/index.html gcp/web/dist/index.html
+        sed -i "s#^const API_BASE = .*#const API_BASE = \"$$API_URL\";#" gcp/web/dist/index.html
+        sed -i "s#^const FIREBASE_CONFIG = .*#const FIREBASE_CONFIG = { apiKey: \"$$APIKEY\", authDomain: \"$$AUTHDOM\", projectId: \"$PROJECT_ID\" };#" gcp/web/dist/index.html
+        sed -i "s|^const MM_CHART_URL = .*|const MM_CHART_URL = \"${_MM_CHART_URL}\";|" gcp/web/dist/index.html
+        grep -q "$$API_URL" gcp/web/dist/index.html
+        gsutil -h "Cache-Control:no-cache" cp gcp/web/dist/index.html "gs://${_WEB_BUCKET}/index.html"
+
+  - id: web-firebase
+    name: node:22-slim
+    entrypoint: bash
+    waitFor: ["web-prep"]
+    args:
+      - -ceu
+      - |
+        cd gcp/web
+        npx -y firebase-tools@latest deploy --only hosting --project $PROJECT_ID --non-interactive
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 1200s
