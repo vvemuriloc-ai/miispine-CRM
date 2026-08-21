@@ -128,6 +128,17 @@ async function main() {
   // cross-firm download is invisible (404), not merely forbidden
   ok("att1 cannot download F2 record", (await att1("POST", `/api/records/${c2rec.id}/download`)).status === 404);
 
+  // staff flip Bob's HIPAA release on → att2 passes the gate (403 becomes a
+  // signing attempt; local runs lack GCS creds, so accept 200 or 500 — the
+  // 403 specifically must be gone). Attorneys cannot flip the flag.
+  ok("attorney cannot set HIPAA flag", (await att2("PATCH", `/api/cases/${C2}/hipaa`, { on_file: true })).status === 403);
+  const hip = await (await staff("PATCH", `/api/cases/${C2}/hipaa`, { on_file: true })).json();
+  ok("staff marks release on file", hip.hipaa_release_on_file === true, JSON.stringify(hip));
+  const dl2 = await att2("POST", `/api/records/${c2rec.id}/download`);
+  ok("release on file unlocks the HIPAA gate", dl2.status !== 403, `status=${dl2.status}`);
+  await staff("PATCH", `/api/cases/${C2}/hipaa`, { on_file: false });
+  ok("revoke re-locks downloads", (await att2("POST", `/api/records/${c2rec.id}/download`)).status === 403);
+
   // --- invoices: staff issue / pay / void; firms read their own ---
   ok("attorney cannot issue an invoice", (await att1("POST", "/api/invoices", { case_id: C1, firm_id: F1, amount: 22000 })).status === 403);
   const invRes = await staff("POST", "/api/invoices", { case_id: C1, firm_id: F1, amount: 22000, due_days: 30 });

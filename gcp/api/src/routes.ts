@@ -93,6 +93,15 @@ export const routes: Route[] = [
       return q.createCase(client, b);
     } },
 
+  // Staff mark a client's signed HIPAA release received (or revoked) — the
+  // gate on every record download below.
+  { method: "PATCH", path: "/api/cases/:id/hipaa", auth: true, h: async (ctx, client) => {
+      if (!ctx.profile.isStaff) throw new HttpError(403, "staff only");
+      const row = await q.setClientHipaa(client, ctx.params.id, !!ctx.body?.on_file);
+      if (!row) throw new HttpError(404, "case not found");
+      return row;
+    } },
+
   // The ONLY path to a record file: firm ownership (RLS) + HIPAA release +
   // audit, then a short-lived GCS signed URL. Mirrors the Supabase edge fn.
   { method: "POST", path: "/api/records/:id/download", auth: true, h: async (ctx, client) => {

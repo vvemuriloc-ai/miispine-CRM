@@ -83,6 +83,17 @@ export async function getDashboard(c: pg.PoolClient) {
   return { cases: nested, ar_aging: await view("ar_aging"), autopilot_queue: await view("autopilot_queue"), invoices: await view("invoices_view") };
 }
 
+// Staff-only (route-gated): flip the HIPAA-release flag on the client behind
+// a case. RLS still applies — staff policies on clients allow the update.
+export async function setClientHipaa(c: pg.PoolClient, caseId: string, onFile: boolean) {
+  const r = await c.query(
+    `update clients cl set hipaa_release_on_file = $2
+       from cases ca where ca.id = $1 and cl.id = ca.client_id
+     returning cl.id, cl.hipaa_release_on_file`,
+    [caseId, onFile]);
+  return r.rows[0] ?? null;
+}
+
 export const listView = (view: string) =>
   async (c: pg.PoolClient) => (await c.query(`select * from ${view}`)).rows;
 

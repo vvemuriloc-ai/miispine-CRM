@@ -992,9 +992,12 @@ function recordsSection(c) {
       ${action}
     </div>`;
   }).join("");
+  const hipaaBtn = IS_STAFF
+    ? ` <button class="rec-btn ${c.hipaa ? "rec-request" : "rec-download"}" onclick="setHipaa('${c.id}', ${c.hipaa ? "false" : "true"})">${c.hipaa ? "Revoke" : "Mark release received"}</button>`
+    : "";
   const hipaa = c.hipaa
-    ? `<div class="hipaa-line hipaa-ok">✓ HIPAA release on file — records can be released to counsel.</div>`
-    : `<div class="hipaa-line hipaa-no">⚠ No HIPAA release on file — downloads are locked until the signed release is received.</div>`;
+    ? `<div class="hipaa-line hipaa-ok">✓ HIPAA release on file — records can be released to counsel.${hipaaBtn}</div>`
+    : `<div class="hipaa-line hipaa-no">⚠ No HIPAA release on file — downloads are locked until the signed release is received.${hipaaBtn}</div>`;
 
   // Full chart: every synced/uploaded document (the checklist above shows one
   // slot per canonical type; real charts are mostly "other" and multiples).
@@ -1021,6 +1024,18 @@ function recordsSection(c) {
       ${docList}
     </div>`;
 }
+
+window.setHipaa = async (caseId, onFile) => {
+  if (LIVE) {
+    try { await api(`/api/cases/${caseId}/hipaa`, { method: "PATCH", body: JSON.stringify({ on_file: onFile }) });
+      await loadData(); selectCase(caseId);
+      toast(onFile ? "HIPAA release marked on file — downloads unlocked" : "HIPAA release revoked — downloads locked");
+    } catch (e) { toast("Update failed: " + (e.message || e)); }
+    return;
+  }
+  const mc = MOCK.cases.find((x) => x.id === caseId);
+  if (mc) { mc.hipaa = onFile; CASES = buildMockCases(); renderDetail(); toast("Saved (demo)"); }
+};
 
 window.downloadRecord = async (recordId) => {
   if (LIVE) {
