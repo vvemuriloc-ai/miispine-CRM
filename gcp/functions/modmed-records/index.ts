@@ -99,6 +99,9 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
     // those may carry a real, retrievable file even where notes don't.
     let withUsableAttachment = 0, attachCategoryDocs = 0, attachCategoryWithFile = 0;
     let enrichAttempted = 0, enrichFailed = 0;
+    // Document ids + error reasons only (no patient data) — so a handful of
+    // persistent failures can be identified instead of just counted.
+    const failedDocs: string[] = [];
 
     for (const [pid, caseId] of caseByPatient) {
       const docs = await fhirGetAll(token, `/DocumentReference?patient=${encodeURIComponent(pid)}`, bundleResources, nextLink, fetchImpl);
@@ -150,7 +153,10 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
             const key = `emr/${caseId}/${e.m.emr_document_id}-${e.m.filename}`.replace(/\s+/g, "_");
             await uploadImpl(key, bytes, e.m.mime_type || "application/octet-stream");
             e.storage_key = key; uploaded++;
-          } catch { fetchErrors++; }
+          } catch (err) {
+            fetchErrors++;
+            failedDocs.push(`${e.m.emr_document_id}: ${err instanceof Error ? err.message : String(err)}`);
+          }
         }
       });
 
@@ -186,11 +192,14 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
     await q(
       "update emr_sync_run set status=$2, records_seen=$3, records_upserted=$4, files_uploaded=$5, cases_touched=$6, unmatched=$7, error=$8, finished_at=now() where id=$1",
       [runId, config.modmed.dryRun ? "dry_run" : "ok", seen, reconciled.records_upserted, uploaded,
-        reconciled.cases_touched, reconciled.unmatched, fetchErrors ? `${fetchErrors} document(s) failed to download` : null]);
+        reconciled.cases_touched, reconciled.unmatched,
+        fetchErrors ? `${fetchErrors} document(s) failed to download — ${failedDocs.slice(0, 10).join("; ")}` : null]);
+    if (failedDocs.length) console.log("download failures (doc id: reason):", JSON.stringify(failedDocs.slice(0, 20)));
     return {
       run_id: runId, dry_run: config.modmed.dryRun, documents_seen: seen,
       attachment_summary: attachmentSummary,
-      files_uploaded: uploaded, fetch_errors: fetchErrors, reconciled,
+      files_uploaded: uploaded, fetch_errors: fetchErrors,
+      failed_documents: failedDocs.slice(0, 10), reconciled,
     };
   } catch (e) {
     await q("update emr_sync_run set status='error', error=$2, finished_at=now() where id=$1",
