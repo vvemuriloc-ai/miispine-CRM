@@ -511,7 +511,7 @@ function mapCaseRow(row) {
     pmBalance: row.emr_pm_balance == null ? null : +row.emr_pm_balance,
     hipaa: !!client.hipaa_release_on_file,
     records: (row.records || []).map((r) => ({
-      id: r.id, type: r.record_type, status: r.status, filename: r.filename, file: !!(r.has_file || r.storage_key),
+      id: r.id, type: r.record_type, status: r.status, filename: r.filename, desc: r.description || "", file: !!(r.has_file || r.storage_key),
       date: r.received_date ? String(r.received_date).slice(0, 10) : null, emr: r.emr_source === "modmed",
     })),
   });
@@ -1008,10 +1008,13 @@ function recordsSection(c) {
     <div class="doc-list">
       ${docs.map((r) => `
         <div class="doc-row">
-          <div class="doc-name" title="${(r.filename || "").replace(/"/g, "&quot;")}">${r.filename || "(unnamed)"}${r.emr ? `<span class="mii-tag">MM</span>` : ""}</div>
+          <div class="doc-name" title="${((r.desc || r.filename) || "").replace(/"/g, "&quot;")}">${r.desc || r.filename || "(unnamed)"}${r.emr ? `<span class="mii-tag">MM</span>` : ""}</div>
           <div class="doc-meta">${TYPE_LABEL[r.type] || "Other"}${r.date ? ` · ${r.date}` : ""}</div>
           ${c.hipaa
-            ? `<button class="rec-btn rec-download" onclick="downloadRecord('${r.id}')">Download</button>`
+            ? `<span style="display:flex;gap:5px">
+                 <button class="rec-btn rec-request" onclick="downloadRecord('${r.id}', true)">Preview</button>
+                 <button class="rec-btn rec-download" onclick="downloadRecord('${r.id}')">Download</button>
+               </span>`
             : `<button class="rec-btn rec-download" disabled title="HIPAA release required">Locked</button>`}
         </div>`).join("")}
     </div>` : "";
@@ -1037,13 +1040,13 @@ window.setHipaa = async (caseId, onFile) => {
   if (mc) { mc.hipaa = onFile; CASES = buildMockCases(); renderDetail(); toast("Saved (demo)"); }
 };
 
-window.downloadRecord = async (recordId) => {
+window.downloadRecord = async (recordId, inline) => {
   if (LIVE) {
     try {
-      const d = await api(`/api/records/${recordId}/download`, { method: "POST" });
+      const d = await api(`/api/records/${recordId}/download`, { method: "POST", body: JSON.stringify({ inline: !!inline }) });
       if (d && d.url) window.open(d.url, "_blank");
       else throw new Error("no URL returned");
-    } catch (e) { toast("Download blocked: " + (e.message || e)); }
+    } catch (e) { toast((inline ? "Preview" : "Download") + " blocked: " + (e.message || e)); }
     return;
   }
   toast("Signed URL minted (demo) — 60s expiry, audit row written");

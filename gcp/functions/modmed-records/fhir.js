@@ -97,8 +97,13 @@ export function mapDocumentReference(res) {
   const record_type = classifyRecordType(res);
   const mime = att?.contentType ?? null;
   const doc_date = isoDate(res.date || res.context?.period?.start);
+  // Attachment title → description (human text; ModMed attachments ship no
+  // title) → machine fallback. Description is slugged for a safe filename.
+  const descSlug = res.description
+    ? String(res.description).slice(0, 80).replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_")
+    : "";
   const filename = att?.title ||
-    `${record_type}-${res.id}.${extFor(mime)}`;
+    (descSlug ? `${descSlug}.${extFor(mime)}` : `${record_type}-${res.id}.${extFor(mime)}`);
   return {
     emr_document_id: res.id,
     emr_patient_id: refId(res.subject),

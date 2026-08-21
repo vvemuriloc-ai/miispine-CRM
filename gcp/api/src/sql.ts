@@ -58,7 +58,7 @@ export async function getDashboard(c: pg.PoolClient) {
   const bills = await grab("select b.case_id, b.id, b.description, b.billed_amount, b.pip_paid, b.insurance_paid, b.lien_amount, b.lien_manual, b.collected_amount, p.name as provider_name, p.is_miispine from medical_bills b left join providers p on p.id=b.provider_id where b.case_id = any($1)");
   const pip = await grab("select case_id, status, balance_remaining from pip_ledger where case_id = any($1)");
   const ms = await grab("select case_id, milestone_type, actual_date from milestones where case_id = any($1) and actual_date is not null");
-  const recs = await grab("select id, case_id, record_type, status, filename, received_date, emr_source, (storage_key is not null) as has_file from records where case_id = any($1) order by received_date desc nulls last");
+  const recs = await grab("select id, case_id, record_type, status, filename, description, received_date, emr_source, (storage_key is not null) as has_file from records where case_id = any($1) order by received_date desc nulls last");
   const byCase = (arr: any[]) => { const m = new Map<string, any[]>(); for (const r of arr) { (m.get(r.case_id) ?? m.set(r.case_id, []).get(r.case_id)!).push(r); } return m; };
   const bM = byCase(bills), mM = byCase(ms), rM = byCase(recs);
   const pM = new Map(pip.map((p) => [p.case_id, p]));
@@ -77,7 +77,7 @@ export async function getDashboard(c: pg.PoolClient) {
     pip_ledger: pM.has(r.id) ? [pM.get(r.id)] : [],
     medical_bills: (bM.get(r.id) ?? []).map((b) => ({ id: b.id, description: b.description, billed_amount: b.billed_amount, pip_paid: b.pip_paid, insurance_paid: b.insurance_paid, lien_amount: b.lien_amount, lien_manual: b.lien_manual, collected_amount: b.collected_amount, provider: { name: b.provider_name, is_miispine: b.is_miispine } })),
     milestones: (mM.get(r.id) ?? []).map((m) => ({ milestone_type: m.milestone_type, actual_date: m.actual_date })),
-    records: (rM.get(r.id) ?? []).map((x) => ({ id: x.id, record_type: x.record_type, status: x.status, filename: x.filename, has_file: x.has_file, received_date: x.received_date, emr_source: x.emr_source })),
+    records: (rM.get(r.id) ?? []).map((x) => ({ id: x.id, record_type: x.record_type, status: x.status, filename: x.filename, description: x.description, has_file: x.has_file, received_date: x.received_date, emr_source: x.emr_source })),
   }));
   const view = async (v: string) => (await c.query(`select * from ${v}`)).rows;
   return { cases: nested, ar_aging: await view("ar_aging"), autopilot_queue: await view("autopilot_queue"), invoices: await view("invoices_view") };

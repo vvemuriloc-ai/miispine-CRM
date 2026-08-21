@@ -110,7 +110,13 @@ export const routes: Route[] = [
       if (!rec.hipaa_release_on_file) throw new HttpError(403, "HIPAA release not on file for this client");
       if (!rec.storage_key) throw new HttpError(409, "record has no file yet");
       await q.writeAudit(client, { user_id: ctx.profile.uid, firm_id: rec.firm_id, resource_id: rec.id });
-      const url = await signDownloadUrl(rec.storage_key, config.signedUrlTtlSec);
+      // {inline:true} → preview in a browser tab. Most EMR documents are PDFs;
+      // when the stored type is unknown (".bin"), preview as PDF so the
+      // browser renders instead of re-downloading.
+      const inline = !!ctx.body?.inline;
+      const ext = String(rec.filename ?? "").split(".").pop()?.toLowerCase();
+      const viewType = ({ pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", txt: "text/plain", html: "text/html" } as Record<string, string>)[ext ?? ""] ?? "application/pdf";
+      const url = await signDownloadUrl(rec.storage_key, config.signedUrlTtlSec, { inline, contentType: inline ? viewType : null });
       return { url, expires_in: config.signedUrlTtlSec };
     } },
 ];
