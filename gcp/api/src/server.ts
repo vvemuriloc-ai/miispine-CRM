@@ -3,7 +3,7 @@
 //   Bearer token → verifyToken → loadProfile → withTenant(app.*) → handler → JSON
 import http from "node:http";
 import { config } from "./config.ts";
-import { verifyToken, loadProfile } from "./auth.ts";
+import { verifyToken, loadProfile, claimInvite } from "./auth.ts";
 import { withTenant } from "./db.ts";
 import { routes, HttpError, type Route, type Ctx } from "./routes.ts";
 
@@ -24,7 +24,7 @@ function cors(req: http.IncomingMessage, res: http.ServerResponse) {
   if (value) res.setHeader("Access-Control-Allow-Origin", value);
   if (value !== "*") res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Headers", "authorization, content-type");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
 }
 function send(req: http.IncomingMessage, res: http.ServerResponse, status: number, body: unknown) {
   cors(req, res);
@@ -60,8 +60,14 @@ export function buildServer() {
       const bearer = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
       const tok = await verifyToken(bearer);
       if (!tok) return send(req, res, 401, { error: "unauthenticated" });
-      const profile = await loadProfile(tok.uid);
-      if (!profile) return send(req, res, 403, { error: "no profile — user not assigned to a firm" });
+      let profile = await loadProfile(tok.uid);
+      // First sign-in with a pending invite: claim it (verified email only).
+      if (!profile && tok.email && tok.emailVerified) profile = await claimInvite(tok.uid, tok.email);
+      if (!profile) {
+        return send(req, res, 403, { error: tok.email && !tok.emailVerified
+          ? "email not verified — click the verification link we emailed, then sign in again"
+          : "no profile — ask miiSpine staff to invite this email" });
+      }
 
       const ctx: Ctx = { params, query: url.searchParams, body, profile };
       const tenant = { uid: profile.uid, firmId: profile.firmId, isStaff: profile.isStaff };

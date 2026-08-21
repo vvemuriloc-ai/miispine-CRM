@@ -21,6 +21,7 @@ async function seed() {
   const c = new pg.Client({ connectionString: OWNER });
   await c.connect();
   await c.query("truncate cases, clients, firms, medical_bills, records, user_profiles restart identity cascade");
+  await c.query("truncate user_invites").catch(() => {});
   await c.query("insert into firms(id,name) values ($1,'Firm One'),($2,'Firm Two')", [F1, F2]);
   await c.query("insert into clients(id,first_name,last_name,hipaa_release_on_file) values ('cccc1111-1111-1111-1111-111111111111','Alice','A',true),('cccc2222-2222-2222-2222-222222222222','Bob','B',false)");
   await c.query("insert into cases(id,firm_id,client_id,claim_number) values ($1,$2,'cccc1111-1111-1111-1111-111111111111','F1-CLAIM'),($3,$4,'cccc2222-2222-2222-2222-222222222222','F2-CLAIM')", [C1, F1, C2, F2]);
@@ -138,6 +139,34 @@ async function main() {
   ok("release on file unlocks the HIPAA gate", dl2.status !== 403, `status=${dl2.status}`);
   await staff("PATCH", `/api/cases/${C2}/hipaa`, { on_file: false });
   ok("revoke re-locks downloads", (await att2("POST", `/api/records/${c2rec.id}/download`)).status === 403);
+
+  // --- invites: email onboarding (claim on first verified sign-in) ---
+  ok("attorney cannot create invites", (await att1("POST", "/api/invites", { email: "x@y.com", is_staff: true })).status === 403);
+  const invStaff = await staff("POST", "/api/invites", { email: "Billing@MiiSpine.com", is_staff: true });
+  ok("staff invite created (email lowercased)", invStaff.status === 200 && (await invStaff.json()).email === "billing@miispine.com");
+  const invAtt = await staff("POST", "/api/invites", { email: "newlawyer@f1.com", firm_id: F1 });
+  ok("attorney invite created", invAtt.status === 200);
+  ok("duplicate pending invite → 409", (await staff("POST", "/api/invites", { email: "billing@miispine.com", is_staff: true })).status === 409);
+
+  // unverified email does NOT claim; verified email does, with the right role
+  const unver = api(base, "uid-new1:billing@miispine.com:unverified");
+  ok("unverified email cannot claim", (await unver("GET", "/api/cases")).status === 403);
+  const newStaff = api(base, "uid-new1:billing@miispine.com");
+  const claimed = await newStaff("GET", "/api/dashboard");
+  ok("verified email claims staff invite", claimed.status === 200 && (await claimed.json()).me.isStaff === true);
+  const newLawyer = api(base, "uid-new2:newlawyer@f1.com");
+  const lw = await newLawyer("GET", "/api/cases");
+  const lwCases = await lw.json();
+  ok("claimed attorney sees only their firm", lw.status === 200 && lwCases.length === 1 && lwCases[0].claim_number === "F1-CLAIM", JSON.stringify(lwCases.length));
+  ok("unknown verified email still 403", (await api(base, "uid-new3:stranger@nowhere.com")("GET", "/api/cases")).status === 403);
+
+  // list shows claimed status; revoke only works on pending
+  const invList = await (await staff("GET", "/api/invites")).json();
+  ok("invite list shows claimed + pending", invList.filter((i: any) => i.claimed_at).length === 2, JSON.stringify(invList.length));
+  const pend = await (await staff("POST", "/api/invites", { email: "pending@f1.com", firm_id: F1 })).json();
+  ok("revoke pending invite", (await staff("DELETE", `/api/invites/${pend.id}`)).status === 200);
+  const claimedInv = invList.find((i: any) => i.claimed_at);
+  ok("revoke claimed invite → 404", (await staff("DELETE", `/api/invites/${claimedInv.id}`)).status === 404);
 
   // --- invoices: staff issue / pay / void; firms read their own ---
   ok("attorney cannot issue an invoice", (await att1("POST", "/api/invoices", { case_id: C1, firm_id: F1, amount: 22000 })).status === 403);

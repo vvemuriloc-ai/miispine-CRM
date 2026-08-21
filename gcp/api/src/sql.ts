@@ -83,6 +83,33 @@ export async function getDashboard(c: pg.PoolClient) {
   return { cases: nested, ar_aging: await view("ar_aging"), autopilot_queue: await view("autopilot_queue"), invoices: await view("invoices_view") };
 }
 
+// ---- Invites (staff-only routes; RLS backs it up) ---------------------------
+export async function listInvites(c: pg.PoolClient) {
+  const r = await c.query(
+    `select i.id, i.email, i.is_staff, i.firm_id, f.name as firm_name, i.role,
+            i.created_at, i.claimed_at
+       from user_invites i left join firms f on f.id = i.firm_id
+      order by (i.claimed_at is null) desc, i.created_at desc limit 100`);
+  return r.rows;
+}
+
+export async function createInvite(c: pg.PoolClient, b: any, invitedBy: string) {
+  const email = String(b.email ?? "").trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("valid email required");
+  const isStaff = !!b.is_staff;
+  if (!isStaff && !b.firm_id) throw new Error("firm_id required for attorney invites");
+  const r = await c.query(
+    `insert into user_invites(email, is_staff, firm_id, role, invited_by)
+     values ($1, $2, $3, $4, $5) returning *`,
+    [email, isStaff, isStaff ? null : b.firm_id, isStaff ? "admin" : "staff", invitedBy]);
+  return r.rows[0];
+}
+
+export async function deleteInvite(c: pg.PoolClient, id: string) {
+  const r = await c.query("delete from user_invites where id = $1 and claimed_at is null returning id", [id]);
+  return r.rows[0] ?? null;
+}
+
 // Staff-only (route-gated): flip the HIPAA-release flag on the client behind
 // a case. RLS still applies — staff policies on clients allow the update.
 export async function setClientHipaa(c: pg.PoolClient, caseId: string, onFile: boolean) {

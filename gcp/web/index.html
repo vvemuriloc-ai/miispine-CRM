@@ -242,8 +242,8 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 .login-sub { font-size: 12px; color: var(--mid); margin-bottom: 20px; }
 .login-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 13px; }
 .login-field label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mid); }
-.login-field input { padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--dark); outline: none; }
-.login-field input:focus { border-color: var(--orange); }
+.login-field input, .login-field select { padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--dark); outline: none; background: white; }
+.login-field input:focus, .login-field select:focus { border-color: var(--orange); }
 .login-signin { width: 100%; padding: 10px; background: var(--orange); color: white; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 4px; }
 .login-signin:hover { opacity: 0.92; }
 .login-alt { width: 100%; padding: 9px; background: transparent; color: var(--mid); border: none; font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer; margin-top: 8px; text-decoration: underline; }
@@ -263,6 +263,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
     <div class="hstat"><div class="hstat-num due" id="stat-due">0</div><div class="hstat-label">Due Follow-up</div></div>
     <div class="hstat"><div class="hstat-num overdue" id="stat-overdue">0</div><div class="hstat-label">Overdue</div></div>
   </div>
+  <button class="signout-btn" id="invites-btn" style="display:none" onclick="openInvites()">Invites</button>
   <button class="signout-btn" id="signout-btn" style="display:none" onclick="signOut()">Sign out</button>
 </div>
 
@@ -274,6 +275,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
     <div class="login-field"><label>Password</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')signIn()"></div>
     <button class="login-signin" onclick="signIn()">Sign in</button>
     <button class="login-alt" onclick="sendReset()">Forgot your password?</button>
+    <button class="login-alt" onclick="signUp()">New user? Create an account</button>
     <div class="login-err" id="login-err"></div>
   </div>
 </div>
@@ -603,6 +605,7 @@ async function loadData() {
     // One bundle: cases (nested) + views + invoices + profile. RLS scopes it.
     const d = await api("/api/dashboard");
     IS_STAFF = !!(d.me && d.me.isStaff);
+    document.getElementById("invites-btn").style.display = IS_STAFF ? "" : "none";
     CASES = (d.cases || []).map(mapCaseRow);
     AR_AGING = d.ar_aging || null;
     QUEUE = d.autopilot_queue || null;
@@ -645,6 +648,86 @@ window.sendReset = async () => {
     await auth._mod.sendPasswordResetEmail(auth, email);
     err.style.color = "var(--green)"; err.textContent = "Password reset email sent — check your inbox.";
   } catch (e) { err.style.color = "var(--red)"; err.textContent = (e && e.message) || "Could not send email."; }
+};
+
+// ---- Invites (staff): email-based onboarding for staff + attorneys --------
+window.openInvites = async () => {
+  document.getElementById("invites-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "invites-overlay";
+  overlay.className = "login-overlay";
+  const firms = [...new Map(CASES.map((c) => [c.firm, c.firmName])).entries()]
+    .filter(([, name]) => name).sort((a, b) => a[1].localeCompare(b[1]));
+  overlay.innerHTML = `
+    <div class="login-card" style="max-width:520px">
+      <div class="login-brand"><div class="logo-mark">m</div><div class="t">Invite a user</div></div>
+      <div class="login-sub">They create their own account with this email at this site; access connects automatically after email verification.</div>
+      <div class="login-field"><label>Email</label><input type="email" id="inv-email" placeholder="person@firm.com"></div>
+      <div class="login-field"><label>Role</label>
+        <select id="inv-role">
+          <option value="staff">miiSpine staff (full access)</option>
+          ${firms.map(([id, name]) => `<option value="${id}">Attorney — ${name}</option>`).join("")}
+        </select></div>
+      <button class="login-signin" onclick="sendInvite()">Create invite</button>
+      <div class="login-err" id="inv-err"></div>
+      <div class="doc-list-hdr" style="color:rgba(255,255,255,0.6)">Invites</div>
+      <div class="doc-list" id="inv-list" style="background:white;max-height:220px"><div style="padding:10px;font-size:12px">Loading…</div></div>
+      <button class="login-alt" onclick="document.getElementById('invites-overlay').remove()">Close</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  refreshInvites();
+};
+
+async function refreshInvites() {
+  const box = document.getElementById("inv-list");
+  if (!box) return;
+  try {
+    const rows = await api("/api/invites");
+    box.innerHTML = rows.length ? rows.map((i) => `
+      <div class="doc-row">
+        <div class="doc-name" title="${i.email}">${i.email}</div>
+        <div class="doc-meta">${i.is_staff ? "Staff" : (i.firm_name || "Attorney")} · ${i.claimed_at ? "joined" : "pending"}</div>
+        ${i.claimed_at ? "<span></span>" : `<button class="rec-btn rec-request" onclick="revokeInvite('${i.id}')">Revoke</button>`}
+      </div>`).join("") : `<div style="padding:10px;font-size:12px">No invites yet.</div>`;
+  } catch (e) { box.innerHTML = `<div style="padding:10px;font-size:12px">Load failed: ${e.message || e}</div>`; }
+}
+
+window.sendInvite = async () => {
+  const err = document.getElementById("inv-err");
+  err.style.color = "var(--red)"; err.textContent = "";
+  const email = document.getElementById("inv-email").value.trim();
+  const role = document.getElementById("inv-role").value;
+  if (!LIVE) { err.textContent = "Demo mode — sign in to a live project."; return; }
+  try {
+    await api("/api/invites", { method: "POST", body: JSON.stringify(
+      role === "staff" ? { email, is_staff: true } : { email, firm_id: role }) });
+    err.style.color = "var(--green)";
+    err.textContent = `Invite created. Tell them to visit this site, click "New user? Create an account" with ${email}, verify their email, and sign in.`;
+    document.getElementById("inv-email").value = "";
+    refreshInvites();
+  } catch (e) { err.textContent = e.message || String(e); }
+};
+
+window.revokeInvite = async (id) => {
+  try { await api(`/api/invites/${id}`, { method: "DELETE" }); refreshInvites(); }
+  catch (e) { toast("Revoke failed: " + (e.message || e)); }
+};
+
+// Anyone can create a Firebase account, but the API only serves people whose
+// VERIFIED email matches a staff-issued invite (or an existing profile).
+window.signUp = async () => {
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-pass").value;
+  const err = document.getElementById("login-err");
+  err.style.color = "var(--red)"; err.textContent = "";
+  if (!email || !password) { err.textContent = "Enter your email and choose a password first."; return; }
+  try {
+    const auth = await getAuth();
+    const cred = await auth._mod.createUserWithEmailAndPassword(auth, email, password);
+    await auth._mod.sendEmailVerification(cred.user);
+    err.style.color = "var(--green)";
+    err.textContent = "Account created — click the verification link we just emailed you, then sign in.";
+  } catch (e) { err.textContent = (e && e.message) || "Could not create the account."; }
 };
 
 window.signOut = async () => {

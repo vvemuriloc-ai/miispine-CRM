@@ -93,6 +93,26 @@ export const routes: Route[] = [
       return q.createCase(client, b);
     } },
 
+  // ---- Invites: staff onboard staff/attorneys by email ----
+  { method: "GET", path: "/api/invites", auth: true, h: async (ctx, client) => {
+      if (!ctx.profile.isStaff) throw new HttpError(403, "staff only");
+      return q.listInvites(client);
+    } },
+  { method: "POST", path: "/api/invites", auth: true, h: async (ctx, client) => {
+      if (!ctx.profile.isStaff) throw new HttpError(403, "staff only");
+      try { return await q.createInvite(client, ctx.body ?? {}, ctx.profile.uid); }
+      catch (e: any) {
+        if (String(e?.message).includes("uq_user_invites_pending")) throw new HttpError(409, "a pending invite already exists for this email");
+        throw new HttpError(400, e?.message ?? "invalid invite");
+      }
+    } },
+  { method: "DELETE", path: "/api/invites/:id", auth: true, h: async (ctx, client) => {
+      if (!ctx.profile.isStaff) throw new HttpError(403, "staff only");
+      const row = await q.deleteInvite(client, ctx.params.id);
+      if (!row) throw new HttpError(404, "invite not found (or already claimed)");
+      return { deleted: row.id };
+    } },
+
   // Staff mark a client's signed HIPAA release received (or revoked) — the
   // gate on every record download below.
   { method: "PATCH", path: "/api/cases/:id/hipaa", auth: true, h: async (ctx, client) => {

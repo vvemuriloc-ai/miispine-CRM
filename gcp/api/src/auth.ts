@@ -9,16 +9,17 @@ import { withTenant } from "./db.ts";
 
 export type Profile = { uid: string; firmId: string | null; isStaff: boolean; role: string };
 
-export async function verifyToken(token: string): Promise<{ uid: string } | null> {
+export async function verifyToken(token: string): Promise<{ uid: string; email: string | null; emailVerified: boolean } | null> {
   if (!token) return null;
   if (config.authMode === "mock") {
-    const m = token.match(/^mock:(.+)$/);
-    return m ? { uid: m[1] } : null;
+    // mock:<uid>[:<email>[:unverified]] — email defaults verified for tests.
+    const m = token.match(/^mock:([^:]+)(?::([^:]+))?(?::(unverified))?$/);
+    return m ? { uid: m[1], email: m[2] ?? null, emailVerified: !!m[2] && !m[3] } : null;
   }
   try {
     const admin = await getFirebase();
     const decoded = await admin.auth().verifyIdToken(token);
-    return { uid: decoded.uid };
+    return { uid: decoded.uid, email: decoded.email ?? null, emailVerified: !!decoded.email_verified };
   } catch (e) {
     // Surface the reason in Cloud Run logs — a silent null here reads as a
     // mystery 401 to the client.
@@ -64,3 +65,17 @@ export async function loadProfile(uid: string): Promise<Profile | null> {
 }
 
 export function clearProfileCache() { cache.clear(); }
+
+// First-login invite claim: a verified token email matching a pending invite
+// creates the profile (claim_invite is SECURITY DEFINER; RLS doesn't block
+// the first-time user). Returns the new profile or null.
+export async function claimInvite(uid: string, email: string): Promise<Profile | null> {
+  const p = await withTenant({ uid, firmId: null, isStaff: false }, async (c) => {
+    const r = await c.query("select * from claim_invite($1, $2)", [uid, email]);
+    if (!r.rows.length) return null;
+    const row = r.rows[0];
+    return { uid: row.user_id, firmId: row.firm_id, isStaff: row.is_staff, role: row.role } as Profile;
+  });
+  if (p) cache.set(uid, { p, exp: Date.now() + config.profileTtlMs });
+  return p;
+}
