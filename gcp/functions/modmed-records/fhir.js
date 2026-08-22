@@ -72,13 +72,26 @@ export function classifyRecordType(res) {
   return "other";
 }
 
-/** The first usable attachment (has bytes or a url) on the DocumentReference. */
+/**
+ * Best usable attachment (has bytes or a url) on the DocumentReference.
+ * content[] can carry multiple renditions of the same document — EMA lists a
+ * PNG page-preview alongside the real PDF for generated notes. Prefer the
+ * document rendition over previews: pdf > html > xml > untyped > images.
+ * (A scan whose only rendition IS an image still comes through unchanged.)
+ */
 export function pickAttachment(res) {
-  for (const c of res.content ?? []) {
-    const a = c.attachment;
-    if (a && (a.data || a.url)) return a;
-  }
-  return null;
+  const atts = (res.content ?? []).map((c) => c.attachment).filter((a) => a && (a.data || a.url));
+  if (!atts.length) return null;
+  const rank = (a) => {
+    const t = (a.contentType || "").toLowerCase();
+    if (t.includes("pdf")) return 0;
+    if (t.includes("html")) return 1;
+    if (t.includes("xml")) return 2;
+    if (!t) return 3;
+    if (t.startsWith("image/")) return 5;
+    return 4;
+  };
+  return atts.slice().sort((x, y) => rank(x) - rank(y))[0];
 }
 
 function extFor(mime) {

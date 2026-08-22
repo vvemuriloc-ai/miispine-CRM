@@ -119,6 +119,11 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
     // those may carry a real, retrievable file even where notes don't.
     let withUsableAttachment = 0, attachCategoryDocs = 0, attachCategoryWithFile = 0;
     let enrichAttempted = 0, enrichFailed = 0;
+    // Rendition census: how many docs offer multiple content[] entries, and
+    // which contentTypes appear (counts only — no PHI). Confirms whether EMA
+    // ships a preview image alongside the real document rendition.
+    let multiRendition = 0;
+    const renditionTypes: Record<string, number> = {};
     // Document ids + error reasons only (no patient data) — so a handful of
     // persistent failures can be identified instead of just counted.
     const failedDocs: string[] = [];
@@ -162,6 +167,12 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
           enrichAttempted++;
           try {
             const full = await fetchDocumentById(token, e.m.emr_document_id, fetchImpl);
+            const contents = full?.content ?? [];
+            if (contents.length > 1) multiRendition++;
+            for (const c of contents) {
+              const t = (c?.attachment?.contentType || "none").toLowerCase();
+              renditionTypes[t] = (renditionTypes[t] ?? 0) + 1;
+            }
             const remapped = full && mapDocumentReference(full);
             if (remapped?._attachment) e.m = remapped;
             else enrichFailed++;
@@ -211,6 +222,8 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
       attachment_category_with_usable_attachment: attachCategoryWithFile,
       enrich_attempted: enrichAttempted,
       enrich_failed: enrichFailed,
+      multi_rendition_docs: multiRendition,
+      rendition_types: renditionTypes,
     };
     console.log("DocumentReference attachment summary:", JSON.stringify(attachmentSummary));
 

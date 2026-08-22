@@ -65,6 +65,9 @@ const searchDocs = [
   // Generated office note: no contentType from ModMed, bytes are HTML —
   // the sync must sniff the real type instead of storing ".bin".
   { resourceType: "DocumentReference", id: "DOC-7", status: "current", type: { text: "Office Visit" }, subject: { reference: "Patient/PT-1001" }, date: "2026-04-15", description: "Office Visit Note" },
+  // Multi-rendition note: EMA lists a PNG page-preview FIRST, the real PDF
+  // second — the picker must take the PDF, not the preview.
+  { resourceType: "DocumentReference", id: "DOC-8", status: "current", type: { text: "Procedure Note" }, subject: { reference: "Patient/PT-1001" }, date: "2026-04-18", description: "Procedure Note" },
 ];
 
 // GET DocumentReference/{id} responses — the real attachment only appears here.
@@ -77,6 +80,10 @@ const fullDocs: Record<string, any> = {
   "DOC-5": { resourceType: "DocumentReference", id: "DOC-5", status: "current", category: [{ text: "Attachment" }], subject: { reference: "Patient/PT-1001" }, date: "2026-04-10", content: [{ attachment: { contentType: "application/pdf", url: S3_URL, title: "EMA_visit_final.pdf" } }] },
   "file|259103741": { resourceType: "DocumentReference", id: "file|259103741", status: "current", category: [{ text: "Attachment" }], subject: { reference: "Patient/PT-1001" }, date: "2026-04-12", content: [{ attachment: { contentType: "application/pdf", url: "Binary/bin-pipe", title: "pipe_id.pdf" } }] },
   "DOC-7": { resourceType: "DocumentReference", id: "DOC-7", status: "current", type: { text: "Office Visit" }, subject: { reference: "Patient/PT-1001" }, date: "2026-04-15", description: "Office Visit Note", content: [{ attachment: { url: "Binary/bin-note" } }] },
+  "DOC-8": { resourceType: "DocumentReference", id: "DOC-8", status: "current", type: { text: "Procedure Note" }, subject: { reference: "Patient/PT-1001" }, date: "2026-04-18", description: "Procedure Note", content: [
+    { attachment: { contentType: "image/png", url: "Binary/bin-preview", title: "preview.png" } },
+    { attachment: { contentType: "application/pdf", url: "Binary/bin-procnote", title: "procedure_note.pdf" } },
+  ] },
 };
 
 const docFetch = (url: string, opts?: any) => {
@@ -91,6 +98,8 @@ const docFetch = (url: string, opts?: any) => {
   if (url.includes("/Binary/bin-1")) return new Response(Buffer.from("%PDF-1.4 fake"));
   if (url.includes("/Binary/bin-pipe")) return new Response(Buffer.from("%PDF-1.4 pipe-fake"));
   if (url.includes("/Binary/bin-note")) return new Response(Buffer.from("<html><body>note narrative</body></html>"));
+  if (url.includes("/Binary/bin-preview")) return new Response(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  if (url.includes("/Binary/bin-procnote")) return new Response(Buffer.from("%PDF-1.4 procnote"));
   if (url === S3_URL) return new Response(Buffer.from("%PDF-1.4 s3-fake"));
   return new Response("{}", { status: 404 });
 };
@@ -121,19 +130,31 @@ async function main() {
   const uploadTypes: Record<string, string> = {};
   const capUpload = async (key: string, _b: Uint8Array, ct: string) => { uploads.push(key); uploadTypes[key] = ct; };
   const rec = await modmedRecords({ fetchImpl: docFetch as any, uploadImpl: capUpload });
-  ok("records upserted 7", rec.reconciled.records_upserted === 7, JSON.stringify(rec.reconciled));
-  ok("6 files uploaded (DOC-4 a bare note has none)", uploads.length === 6, JSON.stringify(uploads));
+  ok("records upserted 8", rec.reconciled.records_upserted === 8, JSON.stringify(rec.reconciled));
+  ok("7 files uploaded (DOC-4 a bare note has none)", uploads.length === 7, JSON.stringify(uploads));
   ok("attachment summary distinguishes category from usable file, post-enrichment",
-    rec.attachment_summary.total_docs === 7 &&
-    rec.attachment_summary.with_usable_attachment === 6 &&
+    rec.attachment_summary.total_docs === 8 &&
+    rec.attachment_summary.with_usable_attachment === 7 &&
     rec.attachment_summary.attachment_category_docs === 3 &&
     rec.attachment_summary.attachment_category_with_usable_attachment === 3 &&
-    rec.attachment_summary.enrich_attempted === 7 &&
+    rec.attachment_summary.enrich_attempted === 8 &&
     rec.attachment_summary.enrich_failed === 1,
     JSON.stringify(rec.attachment_summary));
+  ok("rendition census counts multi-rendition docs",
+    rec.attachment_summary.multi_rendition_docs === 1 &&
+    rec.attachment_summary.rendition_types["image/png"] === 1 &&
+    rec.attachment_summary.rendition_types["application/pdf"] >= 1,
+    JSON.stringify(rec.attachment_summary.rendition_types));
   const recs = await oc.query("select record_type, status from records where emr_source='modmed'");
-  ok("6 uploaded, 1 received (no file)", recs.rows.filter((r: any) => r.status === "uploaded").length === 6
+  ok("7 uploaded, 1 received (no file)", recs.rows.filter((r: any) => r.status === "uploaded").length === 7
     && recs.rows.filter((r: any) => r.status === "received").length === 1, JSON.stringify(recs.rows));
+
+  // Multi-rendition doc: PNG preview listed first, real PDF second — the
+  // picker must store the PDF rendition, not the preview image.
+  const procKey = uploads.find((k) => k.includes("DOC-8"));
+  ok("multi-rendition doc stores the PDF, not the PNG preview",
+    !!procKey && procKey.endsWith(".pdf") && uploadTypes[procKey] === "application/pdf",
+    JSON.stringify([procKey, procKey && uploadTypes[procKey]]));
 
   // Byte-sniffing: an untyped note whose bytes are HTML stores as .html with
   // the true content type — never ".bin opened as code".
