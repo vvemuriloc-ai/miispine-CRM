@@ -16,7 +16,9 @@ import { modmedToken, fhirGetAll, authHeaders, type FetchLike } from "../lib/fhi
 import { mapDocumentReference, bundleResources, nextLink } from "./fhir.js";
 
 type Upload = (key: string, bytes: Uint8Array, contentType: string) => Promise<void>;
-const MAX_BYTES = 50 * 1024 * 1024;
+// Cap sized to the 2Gi container: the largest real ModMed documents seen so
+// far are ~150MB imaging bundles; even a few concurrent at this cap fit.
+const MAX_BYTES = 200 * 1024 * 1024;
 const ENRICH_CONCURRENCY = 6;
 
 // Does this raw DocumentReference's type/category look like ModMed's UI
