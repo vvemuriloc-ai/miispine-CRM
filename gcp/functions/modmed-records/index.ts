@@ -107,8 +107,26 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
     [["DocumentReference"], config.modmed.dryRun]);
   const runId = runRow.rows[0].id;
   try {
-    const cs = await q("select id, emr_patient_id from cases where emr_patient_id is not null");
+    const cs = await q("select id, emr_patient_id, date_of_injury from cases where emr_patient_id is not null");
     const caseByPatient = new Map<string, string>(cs.rows.map((r: any) => [r.emr_patient_id, r.id]));
+    // Earliest DOI per patient: a document older than every case's date of
+    // injury is pre-accident history — never downloaded or attached. A case
+    // with no DOI makes the patient's cutoff unknowable, so no skip applies.
+    // (reconcile_emr_records applies the exact per-case DOI rule on top.)
+    const doiByPatient = new Map<string, { min: string | null; anyNull: boolean }>();
+    for (const r of cs.rows) {
+      const e = doiByPatient.get(r.emr_patient_id) ?? { min: null, anyNull: false };
+      if (!r.date_of_injury) e.anyNull = true;
+      else {
+        const d = new Date(r.date_of_injury).toISOString().slice(0, 10);
+        if (!e.min || d < e.min) e.min = d;
+      }
+      doiByPatient.set(r.emr_patient_id, e);
+    }
+    const doiCutoff = (pid: string): string | null => {
+      const e = doiByPatient.get(pid);
+      return e && !e.anyNull ? e.min : null;
+    };
 
     const token = await modmedToken(fetchImpl);
     let seen = 0, uploaded = 0, fetchErrors = 0, shapeLogged = false;
@@ -122,7 +140,7 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
     // Rendition census: how many docs offer multiple content[] entries, and
     // which contentTypes appear (counts only — no PHI). Confirms whether EMA
     // ships a preview image alongside the real document rendition.
-    let multiRendition = 0;
+    let multiRendition = 0, preDoiSkipped = 0;
     const renditionTypes: Record<string, number> = {};
     // Document ids + error reasons only (no patient data) — so a handful of
     // persistent failures can be identified instead of just counted.
@@ -161,7 +179,11 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
       // IMMEDIATELY: the attachment url is a ~5-minute pre-signed link, so
       // enriching a whole batch up front and downloading later would hand us
       // expired urls for document-heavy patients.
+      const cutoff = doiCutoff(pid);
       await mapLimit(entries, ENRICH_CONCURRENCY, async (e: any) => {
+        // Pre-accident history: dated before every case's DOI — leave it in
+        // ModMed. (Staged for the audit trail; reconcile marks it pre_doi.)
+        if (cutoff && e.m.doc_date && e.m.doc_date < cutoff) { preDoiSkipped++; return; }
         const skip = already.has(e.m.emr_document_id);
         if (!e.m._attachment && !skip) {
           enrichAttempted++;
@@ -224,6 +246,7 @@ export async function run(deps: { fetchImpl?: FetchLike; uploadImpl?: Upload } =
       enrich_failed: enrichFailed,
       multi_rendition_docs: multiRendition,
       rendition_types: renditionTypes,
+      pre_doi_skipped: preDoiSkipped,
     };
     console.log("DocumentReference attachment summary:", JSON.stringify(attachmentSummary));
 

@@ -22,7 +22,7 @@ async function seed() {
   await c.query("insert into firms(id,name) values ('f1111111-1111-1111-1111-111111111111','Firm One')");
   await c.query("insert into attorneys(id,firm_id,name,email) values ('a1111111-1111-1111-1111-111111111111','f1111111-1111-1111-1111-111111111111','Dana Hale','dana@f1.com')");
   await c.query("insert into clients(id,first_name,last_name,emr_patient_id) values ('cccc1111-1111-1111-1111-111111111111','Alice','A','PT-1001')");
-  await c.query("insert into cases(id,firm_id,attorney_id,client_id,claim_number,emr_patient_id,status,followup_priority) values ('aaaa1111-1111-1111-1111-111111111111','f1111111-1111-1111-1111-111111111111','a1111111-1111-1111-1111-111111111111','cccc1111-1111-1111-1111-111111111111','F1-CLAIM','PT-1001','active','normal')");
+  await c.query("insert into cases(id,firm_id,attorney_id,client_id,claim_number,emr_patient_id,status,followup_priority,date_of_injury) values ('aaaa1111-1111-1111-1111-111111111111','f1111111-1111-1111-1111-111111111111','a1111111-1111-1111-1111-111111111111','cccc1111-1111-1111-1111-111111111111','F1-CLAIM','PT-1001','active','normal','2026-01-01')");
   await c.end();
 }
 
@@ -68,6 +68,9 @@ const searchDocs = [
   // Multi-rendition note: EMA lists a PNG page-preview FIRST, the real PDF
   // second — the picker must take the PDF, not the preview.
   { resourceType: "DocumentReference", id: "DOC-8", status: "current", type: { text: "Procedure Note" }, subject: { reference: "Patient/PT-1001" }, date: "2026-04-18", description: "Procedure Note" },
+  // Pre-accident treatment: dated before the case's DOI (2026-01-01) —
+  // must never download or attach to the PI case.
+  { resourceType: "DocumentReference", id: "DOC-9", status: "current", type: { text: "Office Visit" }, subject: { reference: "Patient/PT-1001" }, date: "2025-11-20", description: "Old Visit Note" },
 ];
 
 // GET DocumentReference/{id} responses — the real attachment only appears here.
@@ -130,16 +133,22 @@ async function main() {
   const uploadTypes: Record<string, string> = {};
   const capUpload = async (key: string, _b: Uint8Array, ct: string) => { uploads.push(key); uploadTypes[key] = ct; };
   const rec = await modmedRecords({ fetchImpl: docFetch as any, uploadImpl: capUpload });
-  ok("records upserted 8", rec.reconciled.records_upserted === 8, JSON.stringify(rec.reconciled));
-  ok("7 files uploaded (DOC-4 a bare note has none)", uploads.length === 7, JSON.stringify(uploads));
+  ok("records upserted 8 (pre-DOI doc excluded)", rec.reconciled.records_upserted === 8, JSON.stringify(rec.reconciled));
+  ok("7 files uploaded (DOC-4 a bare note has none; DOC-9 pre-DOI skipped)", uploads.length === 7, JSON.stringify(uploads));
   ok("attachment summary distinguishes category from usable file, post-enrichment",
-    rec.attachment_summary.total_docs === 8 &&
+    rec.attachment_summary.total_docs === 9 &&
     rec.attachment_summary.with_usable_attachment === 7 &&
     rec.attachment_summary.attachment_category_docs === 3 &&
     rec.attachment_summary.attachment_category_with_usable_attachment === 3 &&
     rec.attachment_summary.enrich_attempted === 8 &&
-    rec.attachment_summary.enrich_failed === 1,
+    rec.attachment_summary.enrich_failed === 1 &&
+    rec.attachment_summary.pre_doi_skipped === 1,
     JSON.stringify(rec.attachment_summary));
+  // Pre-accident document: never attached to the case, flagged in staging.
+  const preDoi = await oc.query("select count(*)::int n from records where emr_document_id='DOC-9'");
+  ok("pre-DOI doc not attached to the case", preDoi.rows[0].n === 0);
+  const preDoiStage = await oc.query("select review_reason from emr_record_staging where emr_document_id='DOC-9' and sync_run_id=$1", [rec.run_id]);
+  ok("pre-DOI doc flagged in staging", preDoiStage.rows[0]?.review_reason === "pre_doi", JSON.stringify(preDoiStage.rows));
   ok("rendition census counts multi-rendition docs",
     rec.attachment_summary.multi_rendition_docs === 1 &&
     rec.attachment_summary.rendition_types["image/png"] === 1 &&
