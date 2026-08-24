@@ -1082,14 +1082,17 @@ function recordsSection(c) {
     ? `<div class="hipaa-line hipaa-ok">✓ HIPAA release on file — records can be released to counsel.${hipaaBtn}</div>`
     : `<div class="hipaa-line hipaa-no">⚠ No HIPAA release on file — downloads are locked until the signed release is received.${hipaaBtn}</div>`;
 
-  // Full chart: every synced/uploaded document (the checklist above shows one
-  // slot per canonical type; real charts are mostly "other" and multiples).
+  // Full chart, grouped for the attorney's eye: clinical notes first (what
+  // counsel actually wants), then imaging, then everything else.
   const TYPE_LABEL = Object.fromEntries(RECORD_TYPES);
   const docs = (c.records || []).filter((r) => r.file);
-  const docList = docs.length ? `
-    <div class="doc-list-hdr">All documents <span class="doc-count">${docs.length}</span></div>
-    <div class="doc-list">
-      ${docs.map((r) => `
+  const CLINICAL = ["initial_eval", "progress_notes", "op_report", "discharge", "mmi_letter", "outcome_scores"];
+  const groups = [
+    ["Clinical notes", docs.filter((r) => CLINICAL.includes(r.type))],
+    ["Imaging", docs.filter((r) => r.type === "imaging")],
+    ["Other documents", docs.filter((r) => !CLINICAL.includes(r.type) && r.type !== "imaging")],
+  ].filter(([, list]) => list.length);
+  const docRow = (r) => `
         <div class="doc-row">
           <div class="doc-name" title="${((r.desc || r.filename) || "").replace(/"/g, "&quot;")}">${r.desc || r.filename || "(unnamed)"}${r.emr ? `<span class="mii-tag">MM</span>` : ""}</div>
           <div class="doc-meta">${TYPE_LABEL[r.type] || "Other"}${r.date ? ` · ${r.date}` : ""}</div>
@@ -1099,8 +1102,10 @@ function recordsSection(c) {
                  <button class="rec-btn rec-download" onclick="downloadRecord('${r.id}')">Download</button>
                </span>`
             : `<button class="rec-btn rec-download" disabled title="HIPAA release required">Locked</button>`}
-        </div>`).join("")}
-    </div>` : "";
+        </div>`;
+  const docList = docs.length ? groups.map(([label, list]) => `
+    <div class="doc-list-hdr">${label} <span class="doc-count">${list.length}</span></div>
+    <div class="doc-list">${list.map(docRow).join("")}</div>`).join("") : "";
 
   return `
     <div class="detail-section">

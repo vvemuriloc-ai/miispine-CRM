@@ -63,12 +63,12 @@ export function classifyRecordType(res) {
   for (const code of loincCodes(res)) if (LOINC[code]) return LOINC[code];
   const t = typeText(res);
   if (/\bmmi\b|maximum medical improvement|impairment rating|permanency/.test(t)) return "mmi_letter";
-  if (/operat|surgical note|op note|op report/.test(t)) return "op_report";
+  if (/operat|surgical note|op note|op report|procedure note|procedure report/.test(t)) return "op_report";
   if (/mri|x-?ray|ct scan|radiolog|imaging|ultrasound/.test(t)) return "imaging";
   if (/discharge/.test(t)) return "discharge";
   if (/oswestry|\bodi\b|\bvas\b|outcome score|patient reported|\bprom\b/.test(t)) return "outcome_scores";
   if (/initial eval|new patient|h&p|history and physical|consult/.test(t)) return "initial_eval";
-  if (/progress|follow-?up|office visit|clinic note/.test(t)) return "progress_notes";
+  if (/progress|follow-?up|office visit|clinic note|visit note|office note/.test(t)) return "progress_notes";
   return "other";
 }
 
