@@ -110,6 +110,20 @@ export async function deleteInvite(c: pg.PoolClient, id: string) {
   return r.rows[0] ?? null;
 }
 
+// Staff-only (route-gated): rename/reclassify a record. meta_manual guards
+// the edit against nightly sync overwrites (see reconcile_emr_records).
+export async function updateRecord(c: pg.PoolClient, id: string, b: any) {
+  const r = await c.query(
+    `update records set
+       record_type = coalesce($2, record_type),
+       description = coalesce($3, description),
+       meta_manual = true
+     where id = $1
+     returning id, record_type, description, filename`,
+    [id, b.record_type ?? null, b.description ?? null]);
+  return r.rows[0] ?? null;
+}
+
 // Staff-only (route-gated): flip the HIPAA-release flag on the client behind
 // a case. RLS still applies — staff policies on clients allow the update.
 export async function setClientHipaa(c: pg.PoolClient, caseId: string, onFile: boolean) {

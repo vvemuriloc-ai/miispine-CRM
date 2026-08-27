@@ -215,6 +215,15 @@ async function main() {
   const fn = Object.fromEntries(post.rows.map((r: any) => [r.emr_document_id, r.filename]));
   ok("re-run preserves downloaded filenames", fn["DOC-1"] === "op_note.pdf" && /\.html$/.test(fn["DOC-7"] ?? ""), JSON.stringify(fn));
 
+  // Staff relabeling is sticky: meta_manual guards type + description from
+  // whatever ModMed re-stages on the next sync.
+  await oc.query("update records set record_type='op_report', description='HCFA 1500 corrected', meta_manual=true where emr_document_id='DOC-3'");
+  await modmedRecords({ fetchImpl: docFetch as any, uploadImpl: async () => {} });
+  const manual = await oc.query("select record_type, description from records where emr_document_id='DOC-3'");
+  ok("manual relabel survives the sync",
+    manual.rows[0].record_type === "op_report" && manual.rows[0].description === "HCFA 1500 corrected",
+    JSON.stringify(manual.rows[0]));
+
   // 2b) modmed-link — name search links unique matches, reports the rest
   await oc.query("insert into clients(id,first_name,last_name) values ('cccc2222-2222-2222-2222-222222222222','Uma','Unique'),('cccc3333-3333-3333-3333-333333333333','Andy','Ambig'),('cccc4444-4444-4444-4444-444444444444','Nora','Nowhere')");
   await oc.query(`insert into cases(id,firm_id,client_id,claim_number) values

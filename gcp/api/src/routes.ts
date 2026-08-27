@@ -113,6 +113,15 @@ export const routes: Route[] = [
       return { deleted: row.id };
     } },
 
+  // Staff rename/reclassify a record (fixing ModMed's unlabeled documents);
+  // the edit is sticky across syncs and drives firm visibility + grouping.
+  { method: "PATCH", path: "/api/records/:id", auth: true, h: async (ctx, client) => {
+      if (!ctx.profile.isStaff) throw new HttpError(403, "staff only");
+      const row = await q.updateRecord(client, ctx.params.id, ctx.body ?? {});
+      if (!row) throw new HttpError(404, "record not found");
+      return row;
+    } },
+
   // Staff mark a client's signed HIPAA release received (or revoked) — the
   // gate on every record download below.
   { method: "PATCH", path: "/api/cases/:id/hipaa", auth: true, h: async (ctx, client) => {

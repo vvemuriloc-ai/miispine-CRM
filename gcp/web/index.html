@@ -113,6 +113,8 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 .doc-name { font-size: 13px; font-weight: 600; color: var(--dark); line-height: 1.35; overflow-wrap: anywhere; }
 .doc-sub { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .doc-meta { font-size: 10.5px; color: var(--mid); white-space: nowrap; }
+.doc-edit { border: none; background: transparent; color: var(--mid); cursor: pointer; font-size: 12px; padding: 0 4px; vertical-align: 1px; }
+.doc-edit:hover { color: var(--orange); }
 .rs-uploaded { background: rgba(39,115,90,0.14); color: var(--green); }
 .rs-received { background: rgba(147,210,195,0.3); color: var(--teal-deep); }
 .rs-requested { background: rgba(212,130,10,0.15); color: var(--yellow); }
@@ -1094,7 +1096,7 @@ function recordsSection(c) {
   const TYPE_LABEL = Object.fromEntries(RECORD_TYPES);
   const docs = (c.records || []).filter((r) => r.file);
   const CLINICAL = ["initial_eval", "progress_notes", "op_report", "discharge", "mmi_letter", "outcome_scores"];
-  const isBilling = (r) => /invoice|itemized/i.test((r.desc || "") + " " + (r.filename || ""));
+  const isBilling = (r) => /invoice|itemized|hcfa|cms.?1500|claim form/i.test((r.desc || "") + " " + (r.filename || ""));
   const groups = [
     ["Clinical notes", docs.filter((r) => CLINICAL.includes(r.type) && !isBilling(r))],
     ["Imaging", docs.filter((r) => r.type === "imaging" && !isBilling(r))],
@@ -1103,7 +1105,7 @@ function recordsSection(c) {
   ].filter(([, list]) => list.length);
   const docRow = (r) => `
         <div class="doc-row">
-          <div class="doc-name" title="${((r.desc || r.filename) || "").replace(/"/g, "&quot;")}">${r.desc || r.filename || "(unnamed)"}${r.emr ? `<span class="mii-tag">MM</span>` : ""}</div>
+          <div class="doc-name" title="${((r.desc || r.filename) || "").replace(/"/g, "&quot;")}">${r.desc || r.filename || "(unnamed)"}${r.emr ? `<span class="mii-tag">MM</span>` : ""}${IS_STAFF ? `<button class="doc-edit" title="Rename / reclassify" onclick="editRecord('${r.id}')">✎</button>` : ""}</div>
           <div class="doc-sub">
             <div class="doc-meta">${TYPE_LABEL[r.type] || "Other"}${r.date ? ` · ${r.date}` : ""}</div>
             ${c.hipaa
@@ -1137,6 +1139,46 @@ window.setHipaa = async (caseId, onFile) => {
   }
   const mc = MOCK.cases.find((x) => x.id === caseId);
   if (mc) { mc.hipaa = onFile; CASES = buildMockCases(); renderDetail(); toast("Saved (demo)"); }
+};
+
+// Staff: rename/reclassify a document (sticky across syncs; drives firm
+// visibility and grouping — e.g. "HCFA 1500 …" becomes a Billing document).
+window.editRecord = (recordId) => {
+  const c = CASES.find((x) => x.id === selectedId);
+  const r = c && (c.records || []).find((x) => x.id === recordId);
+  if (!r) return;
+  document.getElementById("recedit-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "recedit-overlay";
+  overlay.className = "login-overlay";
+  overlay.innerHTML = `
+    <div class="login-card" style="max-width:460px">
+      <div class="login-brand"><div class="logo-mark">m</div><div class="t">Rename document</div></div>
+      <div class="login-sub">The new name and category stick — the nightly sync won't overwrite them. Naming it "HCFA 1500 …" or "Invoice …" shares it with the firm as a billing document.</div>
+      <div class="login-field"><label>Name</label><input id="re-desc" value="${((r.desc || r.filename) || "").replace(/"/g, "&quot;")}"></div>
+      <div class="login-field"><label>Category</label>
+        <select id="re-type">
+          ${RECORD_TYPES.map(([t, l]) => `<option value="${t}" ${r.type === t ? "selected" : ""}>${l}</option>`).join("")}
+          <option value="other" ${r.type === "other" || !RECORD_TYPES.some(([t]) => t === r.type) ? "selected" : ""}>Other</option>
+        </select></div>
+      <button class="login-signin" onclick="saveRecordEdit('${recordId}')">Save</button>
+      <button class="login-alt" onclick="document.getElementById('recedit-overlay').remove()">Cancel</button>
+      <div class="login-err" id="re-err"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+};
+
+window.saveRecordEdit = async (recordId) => {
+  const err = document.getElementById("re-err");
+  try {
+    await api(`/api/records/${recordId}`, { method: "PATCH", body: JSON.stringify({
+      description: document.getElementById("re-desc").value.trim() || null,
+      record_type: document.getElementById("re-type").value,
+    }) });
+    document.getElementById("recedit-overlay").remove();
+    await loadData(); selectCase(selectedId);
+    toast("Document updated");
+  } catch (e) { err.textContent = e.message || String(e); }
 };
 
 window.downloadRecord = async (recordId, inline) => {

@@ -164,6 +164,14 @@ async function main() {
   ok("staff still see every type", (staffCase.records ?? []).map((r: any) => r.record_type).includes("mmi_letter"),
     JSON.stringify((staffCase.records ?? []).length));
 
+  // staff relabel a hidden doc as HCFA → becomes firm-visible billing paperwork
+  ok("attorney cannot relabel records", (await att1("PATCH", `/api/records/${rProg.id}`, { description: "x" })).status === 403);
+  const relabeled = await (await staff("PATCH", `/api/records/${rProg.id}`, { description: "HCFA 1500 - DOS 2026-03-01" })).json();
+  ok("staff relabel sets meta + description", relabeled.description.startsWith("HCFA"), JSON.stringify(relabeled));
+  const dash2 = await (await att1("GET", "/api/dashboard")).json();
+  ok("HCFA-labeled doc now firm-visible",
+    ((dash2.cases.find((x: any) => x.id === C1)?.records) ?? []).some((r: any) => (r.description ?? "").startsWith("HCFA")));
+
   // --- invites: email onboarding (claim on first verified sign-in) ---
   ok("attorney cannot create invites", (await att1("POST", "/api/invites", { email: "x@y.com", is_staff: true })).status === 403);
   const invStaff = await staff("POST", "/api/invites", { email: "Billing@MiiSpine.com", is_staff: true });
