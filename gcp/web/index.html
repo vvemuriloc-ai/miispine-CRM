@@ -103,9 +103,10 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 .doc-list-hdr { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--mid); margin: 14px 0 6px; }
 .doc-count { background: var(--sand); border-radius: 9px; padding: 1px 7px; margin-left: 4px; font-family: 'DM Mono', monospace; }
 .doc-list { max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 9px; }
-.doc-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.doc-row { display: flex; flex-direction: column; gap: 5px; padding: 9px 12px; border-bottom: 1px solid var(--border); }
 .doc-row:last-child { border-bottom: none; }
-.doc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dark); }
+.doc-name { font-size: 13px; font-weight: 600; color: var(--dark); line-height: 1.35; overflow-wrap: anywhere; }
+.doc-sub { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .doc-meta { font-size: 10.5px; color: var(--mid); white-space: nowrap; }
 .rs-uploaded { background: rgba(39,115,90,0.14); color: var(--green); }
 .rs-received { background: rgba(147,210,195,0.3); color: var(--teal-deep); }
@@ -1095,13 +1096,15 @@ function recordsSection(c) {
   const docRow = (r) => `
         <div class="doc-row">
           <div class="doc-name" title="${((r.desc || r.filename) || "").replace(/"/g, "&quot;")}">${r.desc || r.filename || "(unnamed)"}${r.emr ? `<span class="mii-tag">MM</span>` : ""}</div>
-          <div class="doc-meta">${TYPE_LABEL[r.type] || "Other"}${r.date ? ` · ${r.date}` : ""}</div>
-          ${c.hipaa
-            ? `<span style="display:flex;gap:5px">
-                 <button class="rec-btn rec-request" onclick="downloadRecord('${r.id}', true)">Preview</button>
-                 <button class="rec-btn rec-download" onclick="downloadRecord('${r.id}')">Download</button>
-               </span>`
-            : `<button class="rec-btn rec-download" disabled title="HIPAA release required">Locked</button>`}
+          <div class="doc-sub">
+            <div class="doc-meta">${TYPE_LABEL[r.type] || "Other"}${r.date ? ` · ${r.date}` : ""}</div>
+            ${c.hipaa
+              ? `<span style="display:flex;gap:5px">
+                   <button class="rec-btn rec-request" onclick="downloadRecord('${r.id}', true)">Preview</button>
+                   <button class="rec-btn rec-download" onclick="downloadRecord('${r.id}')">Download</button>
+                 </span>`
+              : `<button class="rec-btn rec-download" disabled title="HIPAA release required">Locked</button>`}
+          </div>
         </div>`;
   const docList = docs.length ? groups.map(([label, list]) => `
     <div class="doc-list-hdr">${label} <span class="doc-count">${list.length}</span></div>
