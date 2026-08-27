@@ -100,6 +100,11 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 .rec-label { flex: 1; font-size: 12.5px; font-weight: 500; }
 .rec-label .rec-file { font-size: 10.5px; color: var(--mid); font-weight: 400; margin-top: 1px; }
 .rec-status { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+.miss-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 12px 0 4px; }
+.miss-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--mid); margin-right: 2px; }
+.miss-chip { font-family: 'DM Sans', sans-serif; font-size: 11px; padding: 3px 9px; border-radius: 10px; border: 1px dashed var(--border); background: transparent; color: var(--mid); cursor: pointer; }
+.miss-chip:hover { border-color: var(--orange); color: var(--orange); }
+.miss-chip.miss-wait { border-style: solid; cursor: default; }
 .doc-list-hdr { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--mid); margin: 14px 0 6px; }
 .doc-count { background: var(--sand); border-radius: 9px; padding: 1px 7px; margin-left: 4px; font-family: 'DM Mono', monospace; }
 .doc-list { max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 9px; }
@@ -1053,29 +1058,22 @@ const RECORD_TYPES = [
   ["outcome_scores", "Outcome Scores"],
 ];
 function recordsSection(c) {
+  // Compact key-items line (the old 7-row checklist is redundant next to the
+  // grouped document list): one chip per canonical type not yet on file —
+  // staff chips upload, attorney chips request. Requested/processing shows
+  // its state; a type with a document simply appears in the list below.
   const byType = Object.fromEntries((c.records || []).map((r) => [r.type, r]));
-  const rows = RECORD_TYPES.map(([type, label]) => {
+  const chips = RECORD_TYPES.map(([type, label]) => {
     const r = byType[type];
-    const status = r ? r.status : "missing";
-    const ready = r && r.file;
-    let action;
-    if (ready) {
-      action = c.hipaa
-        ? `<button class="rec-btn rec-download" onclick="downloadRecord('${r.id}')">Download</button>`
-        : `<button class="rec-btn rec-download" disabled title="HIPAA release required">Locked</button>`;
-    } else if (IS_STAFF) {
-      action = `<button class="rec-btn rec-upload" onclick="uploadRecord('${c.id}','${type}')">Upload</button>`;
-    } else if (status === "requested" || status === "received") {
-      action = `<span class="rec-wait">${status === "requested" ? "Requested" : "Received — processing"}</span>`;
-    } else {
-      action = `<button class="rec-btn rec-request" onclick="requestRecord('${c.id}','${type}')">Request</button>`;
-    }
-    return `<div class="rec-item">
-      <div class="rec-label">${label}${r && r.filename ? `<div class="rec-file">${r.filename}</div>` : ""}</div>
-      <span class="rec-status rs-${status}">${status}</span>
-      ${action}
-    </div>`;
-  }).join("");
+    if (r && r.file) return "";
+    if (r && (r.status === "requested" || r.status === "received"))
+      return `<span class="miss-chip miss-wait">${label} · ${r.status === "requested" ? "requested" : "processing"}</span>`;
+    return IS_STAFF
+      ? `<button class="miss-chip" onclick="uploadRecord('${c.id}','${type}')">${label} +</button>`
+      : `<button class="miss-chip" onclick="requestRecord('${c.id}','${type}')">${label} — request</button>`;
+  }).filter(Boolean).join("");
+  const rows = chips ? `
+    <div class="miss-line"><span class="miss-lbl">Not yet on file:</span>${chips}</div>` : "";
   const hipaaBtn = IS_STAFF
     ? ` <button class="rec-btn ${c.hipaa ? "rec-request" : "rec-download"}" onclick="setHipaa('${c.id}', ${c.hipaa ? "false" : "true"})">${c.hipaa ? "Revoke" : "Mark release received"}</button>`
     : "";
