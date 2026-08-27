@@ -514,6 +514,7 @@ function mapCaseRow(row) {
     carrier: row.liability_carrier || "",
     healthIns: row.health_insurance || "",
     assignedTo: row.assigned_to || "",
+    doi: row.date_of_injury ? String(row.date_of_injury).slice(0, 10) : "",
     notes: row.notes || "",
     emrPatientId: row.emr_patient_id || null,
     pmBalance: row.emr_pm_balance == null ? null : +row.emr_pm_balance,
@@ -1500,6 +1501,7 @@ function renderDetail() {
         <div class="recon-field"><label>PIP carrier</label><input id="ed-carrier" value="${(c.carrier || "").replace(/"/g, "&quot;")}"></div>
         <div class="recon-field"><label>Health insurance</label><input id="ed-hins" value="${(c.healthIns || "").replace(/"/g, "&quot;")}"></div>
         <div class="recon-field"><label>Assigned to</label><input id="ed-assigned" value="${(c.assignedTo || "").replace(/"/g, "&quot;")}"></div>
+        <div class="recon-field"><label>Date of injury ${c.doi ? "" : `<span class="badge" style="background:rgba(192,57,43,0.12);color:var(--red);margin-left:4px">not set — records not date-filtered</span>`}</label><input type="date" id="ed-doi" value="${c.doi || ""}"></div>
         <div class="recon-field full">
           <label>ModMed chart ${c.emrPatientId ? `<span class="badge" style="background:rgba(46,125,90,0.12);color:var(--green);margin-left:4px">linked</span>` : `<span class="badge" style="background:rgba(192,57,43,0.12);color:var(--red);margin-left:4px">not linked</span>`}</label>
           <input id="ed-emr" placeholder="Paste patient ID or chart URL from ModMed" value="${c.emrPatientId || ""}">
@@ -1555,6 +1557,7 @@ window.saveCaseDetails = async (id) => {
   const v = (x) => document.getElementById(x).value.trim() || null;
   const body = { claim_number: v("ed-claim"), liability_carrier: v("ed-carrier"),
                  health_insurance: v("ed-hins"), assigned_to: v("ed-assigned"),
+                 date_of_injury: v("ed-doi"),
                  notes: v("ed-notes"), emr_patient_id: extractEmrPatientId(v("ed-emr")) };
   if (LIVE) {
     try { await api(`/api/cases/${id}`, { method: "PATCH", body: JSON.stringify(body) });
