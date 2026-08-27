@@ -129,10 +129,10 @@ export async function createRecord(c: pg.PoolClient, b: any) {
   // Attorneys may only create requests; the records_attorney_guard trigger
   // strips storage_key and forces status='requested' for non-staff callers.
   const r = await c.query(
-    `insert into records (case_id, firm_id, provider_id, record_type, status, storage_key, filename)
-     values ($1,$2,$3,$4,coalesce($5,'requested'),$6,$7)
-     returning id, case_id, firm_id, record_type, status, filename`,
-    [b.case_id, b.firm_id, b.provider_id ?? null, b.record_type, b.status ?? null, b.storage_key ?? null, b.filename ?? null],
+    `insert into records (case_id, firm_id, provider_id, record_type, status, storage_key, filename, description)
+     values ($1,$2,$3,$4,coalesce($5,'requested'),$6,$7,$8)
+     returning id, case_id, firm_id, record_type, status, filename, description`,
+    [b.case_id, b.firm_id, b.provider_id ?? null, b.record_type, b.status ?? null, b.storage_key ?? null, b.filename ?? null, b.description ?? null],
   );
   return r.rows[0];
 }

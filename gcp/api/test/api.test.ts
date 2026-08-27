@@ -140,6 +140,30 @@ async function main() {
   await staff("PATCH", `/api/cases/${C2}/hipaa`, { on_file: false });
   ok("revoke re-locks downloads", (await att2("POST", `/api/records/${c2rec.id}/download`)).status === 403);
 
+  // --- firms see only pertinent record types (RLS-enforced) ---
+  const mkRec = async (type: string, desc: string | null = null) =>
+    (await (await staff("POST", "/api/records", { case_id: C1, firm_id: F1, record_type: type, status: "uploaded", storage_key: `emr/${type}.pdf`, description: desc })).json());
+  const rOp = await mkRec("op_report");
+  const rProg = await mkRec("progress_notes");
+  const rMmi = await mkRec("mmi_letter");
+  const rInv = await mkRec("other", "Invoice for services");
+  const oc2 = new pg.Client({ connectionString: OWNER }); await oc2.connect();
+  await oc2.query("update clients set hipaa_release_on_file=true where id='cccc1111-1111-1111-1111-111111111111'");
+  await oc2.end();
+  const att1Dash = await (await att1("GET", "/api/dashboard")).json();
+  const att1Recs = (att1Dash.cases.find((x: any) => x.id === C1)?.records) ?? [];
+  const att1Types = att1Recs.map((r: any) => r.record_type).sort();
+  ok("firm sees pertinent types + invoice docs only",
+    att1Types.includes("op_report") && !att1Types.includes("progress_notes") && !att1Types.includes("mmi_letter")
+    && att1Recs.some((r: any) => (r.description ?? "").includes("Invoice")),
+    JSON.stringify(att1Types));
+  ok("firm cannot download an out-of-scope record (invisible, 404)",
+    (await att1("POST", `/api/records/${rProg.id}/download`)).status === 404);
+  ok("firm can download a pertinent record", (await att1("POST", `/api/records/${rOp.id}/download`)).status !== 404);
+  const staffCase = await (await staff("GET", `/api/cases/${C1}`)).json();
+  ok("staff still see every type", (staffCase.records ?? []).map((r: any) => r.record_type).includes("mmi_letter"),
+    JSON.stringify((staffCase.records ?? []).length));
+
   // --- invites: email onboarding (claim on first verified sign-in) ---
   ok("attorney cannot create invites", (await att1("POST", "/api/invites", { email: "x@y.com", is_staff: true })).status === 403);
   const invStaff = await staff("POST", "/api/invites", { email: "Billing@MiiSpine.com", is_staff: true });

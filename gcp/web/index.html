@@ -1063,7 +1063,12 @@ function recordsSection(c) {
   // staff chips upload, attorney chips request. Requested/processing shows
   // its state; a type with a document simply appears in the list below.
   const byType = Object.fromEntries((c.records || []).map((r) => [r.type, r]));
-  const chips = RECORD_TYPES.map(([type, label]) => {
+  // Firms may only see/request the pertinent set (RLS enforces the same
+  // server-side); MMI/impairment is the paid narrative report, and discharge
+  // summaries aren't produced. Staff keep the full set for uploads.
+  const FIRM_TYPES = ["op_report", "initial_eval", "imaging"];
+  const chipTypes = IS_STAFF ? RECORD_TYPES : RECORD_TYPES.filter(([t]) => FIRM_TYPES.includes(t));
+  const chips = chipTypes.map(([type, label]) => {
     const r = byType[type];
     if (r && r.file) return "";
     if (r && (r.status === "requested" || r.status === "received"))
@@ -1072,8 +1077,10 @@ function recordsSection(c) {
       ? `<button class="miss-chip" onclick="uploadRecord('${c.id}','${type}')">${label} +</button>`
       : `<button class="miss-chip" onclick="requestRecord('${c.id}','${type}')">${label} — request</button>`;
   }).filter(Boolean).join("");
-  const rows = chips ? `
-    <div class="miss-line"><span class="miss-lbl">Not yet on file:</span>${chips}</div>` : "";
+  const narrativeNote = IS_STAFF ? "" : `
+    <div class="miss-line" style="margin-top:4px"><span class="miss-lbl" style="text-transform:none;letter-spacing:0">Narrative report (incl. MMI / impairment rating): available on request from miiSpine billing — preparation fee applies.</span></div>`;
+  const rows = (chips ? `
+    <div class="miss-line"><span class="miss-lbl">Not yet on file:</span>${chips}</div>` : "") + narrativeNote;
   const hipaaBtn = IS_STAFF
     ? ` <button class="rec-btn ${c.hipaa ? "rec-request" : "rec-download"}" onclick="setHipaa('${c.id}', ${c.hipaa ? "false" : "true"})">${c.hipaa ? "Revoke" : "Mark release received"}</button>`
     : "";
