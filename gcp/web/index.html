@@ -1093,10 +1093,12 @@ function recordsSection(c) {
   const TYPE_LABEL = Object.fromEntries(RECORD_TYPES);
   const docs = (c.records || []).filter((r) => r.file);
   const CLINICAL = ["initial_eval", "progress_notes", "op_report", "discharge", "mmi_letter", "outcome_scores"];
+  const isBilling = (r) => /invoice|itemized/i.test((r.desc || "") + " " + (r.filename || ""));
   const groups = [
-    ["Clinical notes", docs.filter((r) => CLINICAL.includes(r.type))],
-    ["Imaging", docs.filter((r) => r.type === "imaging")],
-    ["Other documents", docs.filter((r) => !CLINICAL.includes(r.type) && r.type !== "imaging")],
+    ["Clinical notes", docs.filter((r) => CLINICAL.includes(r.type) && !isBilling(r))],
+    ["Imaging", docs.filter((r) => r.type === "imaging" && !isBilling(r))],
+    ["Billing documents", docs.filter(isBilling)],
+    ["Other documents", docs.filter((r) => !CLINICAL.includes(r.type) && r.type !== "imaging" && !isBilling(r))],
   ].filter(([, list]) => list.length);
   const docRow = (r) => `
         <div class="doc-row">
