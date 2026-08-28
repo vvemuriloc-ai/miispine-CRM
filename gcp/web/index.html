@@ -1174,6 +1174,54 @@ window.setHipaa = async (caseId, onFile) => {
   if (mc) { mc.hipaa = onFile; CASES = buildMockCases(); renderDetail(); toast("Saved (demo)"); }
 };
 
+// Staff: merge THIS (duplicate) case into a chosen keeper — everything
+// moves to the keeper; this case closes with an audit note.
+window.openMerge = (dupId) => {
+  const dup = CASES.find((x) => x.id === dupId);
+  if (!dup) return;
+  document.getElementById("merge-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "merge-overlay";
+  overlay.className = "login-overlay";
+  overlay.innerHTML = `
+    <div class="login-card" style="max-width:520px">
+      <div class="login-brand"><div class="logo-mark">m</div><div class="t">Merge duplicate</div></div>
+      <div class="login-sub">You are merging <strong>${dup.patient} · ${dup.claim || "no claim #"}</strong> INTO the case you pick below. Its bills, records, invoices, and history move to the keeper; this case closes with a merge note. Pick the case with the correct claim # and ModMed link as the keeper.</div>
+      <div class="login-field"><label>Find the keeper case</label>
+        <input id="mg-search" placeholder="Patient, claim #, firm…" oninput="mergeSearch('${dupId}')" value="${(dup.patient.split(" ")[0] || "").replace(/"/g, "&quot;")}"></div>
+      <div class="doc-list" id="mg-list" style="background:white;max-height:240px"></div>
+      <button class="login-alt" onclick="document.getElementById('merge-overlay').remove()">Cancel</button>
+      <div class="login-err" id="mg-err"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  mergeSearch(dupId);
+};
+
+window.mergeSearch = (dupId) => {
+  const q = document.getElementById("mg-search").value.trim().toLowerCase();
+  const list = CASES.filter((c) => c.id !== dupId &&
+    (!q || [c.patient, c.claim, c.firmName].some((v) => (v || "").toLowerCase().includes(q)))).slice(0, 12);
+  document.getElementById("mg-list").innerHTML = list.length ? list.map((c) => `
+    <div class="doc-row">
+      <div class="doc-name">${c.patient} · ${c.claim || "no claim #"}${c.emrPatientId ? `<span class="mii-tag">MM</span>` : ""}</div>
+      <div class="doc-sub">
+        <div class="doc-meta">${c.firmName} · ${c.status.replace(/_/g, " ")} · ${fmt(c.balance)}</div>
+        <button class="rec-btn rec-download" onclick="doMerge('${dupId}','${c.id}')">Merge into this</button>
+      </div>
+    </div>`).join("") : `<div style="padding:10px;font-size:12px">No matching cases.</div>`;
+};
+
+window.doMerge = async (dupId, keepId) => {
+  const err = document.getElementById("mg-err");
+  if (!confirm("Move everything from the duplicate into the selected case and close the duplicate? This can't be undone from the dashboard.")) return;
+  try {
+    const r = await api(`/api/cases/${dupId}/merge`, { method: "POST", body: JSON.stringify({ into: keepId }) });
+    document.getElementById("merge-overlay").remove();
+    await loadData(); selectCase(keepId);
+    toast(r.result || "Merged");
+  } catch (e) { err.textContent = e.message || String(e); }
+};
+
 // Staff: rename/reclassify a document (sticky across syncs; drives firm
 // visibility and grouping — e.g. "HCFA 1500 …" becomes a Billing document).
 window.editRecord = (recordId) => {
@@ -1591,6 +1639,7 @@ function renderDetail() {
         ${["settled", "closed"].includes(c.status)
           ? `<button class="btn-resolve" onclick="setCaseStatus('${c.id}','active')">Reopen case</button>`
           : `<button class="btn-resolve" onclick="setCaseStatus('${c.id}','settled')">Mark settled (paid in full)</button>`}
+        ${IS_STAFF ? `<button class="btn-resolve" onclick="openMerge('${c.id}')">Merge duplicate…</button>` : ""}
       </div>
     </div>
 

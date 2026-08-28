@@ -172,6 +172,20 @@ async function main() {
   ok("HCFA-labeled doc now firm-visible",
     ((dash2.cases.find((x: any) => x.id === C1)?.records) ?? []).some((r: any) => (r.description ?? "").startsWith("HCFA")));
 
+  // --- staff merge a duplicate case from the app ---
+  const oc3 = new pg.Client({ connectionString: OWNER }); await oc3.connect();
+  await oc3.query("insert into cases(id,firm_id,client_id,claim_number,status) values ('aaaa8888-8888-8888-8888-888888888888',$1,'cccc1111-1111-1111-1111-111111111111','DUP-X','active')", [F1]);
+  await oc3.query("insert into medical_bills(case_id,firm_id,provider_id,date_of_service,billed_amount) select 'aaaa8888-8888-8888-8888-888888888888',$1,id,'2026-06-01',777 from providers limit 1", [F1]);
+  await oc3.end();
+  ok("attorney cannot merge cases", (await att1("POST", "/api/cases/aaaa8888-8888-8888-8888-888888888888/merge", { into: C1 })).status === 403);
+  const mg = await staff("POST", "/api/cases/aaaa8888-8888-8888-8888-888888888888/merge", { into: C1 });
+  const mgBody = await mg.json();
+  ok("staff merge succeeds and reports moves", mg.status === 200 && /1 bills/.test(mgBody.result ?? ""), JSON.stringify(mgBody));
+  const oc4 = new pg.Client({ connectionString: OWNER }); await oc4.connect();
+  const mergedRow = (await oc4.query("select status, notes from cases where id='aaaa8888-8888-8888-8888-888888888888'")).rows[0];
+  await oc4.end();
+  ok("duplicate closed with merge note", mergedRow.status === "closed" && /MERGED into/.test(mergedRow.notes ?? ""), JSON.stringify(mergedRow));
+
   // --- invites: email onboarding (claim on first verified sign-in) ---
   ok("attorney cannot create invites", (await att1("POST", "/api/invites", { email: "x@y.com", is_staff: true })).status === 403);
   const invStaff = await staff("POST", "/api/invites", { email: "Billing@MiiSpine.com", is_staff: true });
@@ -189,7 +203,9 @@ async function main() {
   const newLawyer = api(base, "uid-new2:newlawyer@f1.com");
   const lw = await newLawyer("GET", "/api/cases");
   const lwCases = await lw.json();
-  ok("claimed attorney sees only their firm", lw.status === 200 && lwCases.length === 1 && lwCases[0].claim_number === "F1-CLAIM", JSON.stringify(lwCases.length));
+  ok("claimed attorney sees only their firm", lw.status === 200
+    && lwCases.some((x: any) => x.claim_number === "F1-CLAIM")
+    && !lwCases.some((x: any) => x.claim_number === "F2-CLAIM"), JSON.stringify(lwCases.length));
   ok("unknown verified email still 403", (await api(base, "uid-new3:stranger@nowhere.com")("GET", "/api/cases")).status === 403);
 
   // list shows claimed status; revoke only works on pending

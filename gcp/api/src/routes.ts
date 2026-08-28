@@ -113,6 +113,17 @@ export const routes: Route[] = [
       return { deleted: row.id };
     } },
 
+  // Staff merge a duplicate case into the keeper: children move, the
+  // duplicate closes with an audit note (merge_cases enforces staff-only).
+  { method: "POST", path: "/api/cases/:id/merge", auth: true, h: async (ctx, client) => {
+      if (!ctx.profile.isStaff) throw new HttpError(403, "staff only");
+      if (!ctx.body?.into) throw new HttpError(400, "into (keeper case id) required");
+      try {
+        const r = await client.query("select merge_cases($1, $2) as result", [ctx.body.into, ctx.params.id]);
+        return { result: r.rows[0].result };
+      } catch (e: any) { throw new HttpError(400, e?.message ?? "merge failed"); }
+    } },
+
   // Staff rename/reclassify a record (fixing ModMed's unlabeled documents);
   // the edit is sticky across syncs and drives firm visibility + grouping.
   { method: "PATCH", path: "/api/records/:id", auth: true, h: async (ctx, client) => {
