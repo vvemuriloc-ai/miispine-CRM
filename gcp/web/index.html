@@ -492,6 +492,7 @@ function mapCaseRow(row) {
     return {
       id: b.id, desc: b.description || "", prov: prov.name || "", mii: !!prov.is_miispine,
       billed: +b.billed_amount || 0, pip_paid: +b.pip_paid || 0, ins_paid: +b.insurance_paid || 0,
+      src: b.emr_source || "manual",
       lien: +b.lien_amount || 0, lien_manual: !!b.lien_manual, collected: +b.collected_amount || 0,
     };
   });
@@ -1174,6 +1175,17 @@ window.setHipaa = async (caseId, onFile) => {
   if (mc) { mc.hipaa = onFile; CASES = buildMockCases(); renderDetail(); toast("Saved (demo)"); }
 };
 
+// Staff: remove a redundant imported/manual bill (e.g. the workbook's
+// aggregate line double-counting ModMed detail after a merge).
+window.removeBill = async (billId, caseId) => {
+  if (!confirm("Remove this bill from the case? Use this for imported/aggregate lines that double-count ModMed charges. ModMed-synced bills can't be removed.")) return;
+  try {
+    await api(`/api/bills/${billId}`, { method: "DELETE" });
+    await loadData(); selectCase(caseId);
+    toast("Bill removed — balance recalculated");
+  } catch (e) { toast("Remove failed: " + (e.message || e)); }
+};
+
 // Staff: merge THIS (duplicate) case into a chosen keeper — everything
 // moves to the keeper; this case closes with an audit note.
 window.openMerge = (dupId) => {
@@ -1561,8 +1573,9 @@ function renderDetail() {
 
   const bills = c.bills.map((b) => `
     <div class="bill-item">
-      <div><div class="bill-desc">${b.desc}${b.mii ? '<span class="mii-tag">miiSpine</span>' : ""}</div><div class="bill-prov">${b.prov}</div></div>
-      <div class="bill-amt">${fmt(b.billed)}${billLien(b) ? `<div class="bill-prov">lien ${fmt(billLien(b))}</div>` : ""}</div>
+      <div><div class="bill-desc">${b.desc}${b.mii ? '<span class="mii-tag">miiSpine</span>' : ""}${b.src === "modmed" ? '<span class="mii-tag">MM</span>' : ""}</div><div class="bill-prov">${b.prov}</div></div>
+      <div class="bill-amt">${fmt(b.billed)}${billLien(b) ? `<div class="bill-prov">lien ${fmt(billLien(b))}</div>` : ""}
+        ${IS_STAFF && b.src !== "modmed" && b.id ? `<button class="doc-edit" title="Remove this imported/manual bill" onclick="removeBill('${b.id}', '${c.id}')">✕</button>` : ""}</div>
     </div>`).join("");
 
   panel.innerHTML = `

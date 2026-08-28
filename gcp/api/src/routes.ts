@@ -51,6 +51,15 @@ export const routes: Route[] = [
       return row;
     } },
 
+  // Staff remove a redundant imported/manual bill (double-counted charges
+  // after a merge). ModMed-synced bills can't be removed — the sync owns them.
+  { method: "DELETE", path: "/api/bills/:id", auth: true, h: async (ctx, client) => {
+      if (!ctx.profile.isStaff) throw new HttpError(403, "staff only");
+      const row = await q.deleteBill(client, ctx.params.id);
+      if (!row) throw new HttpError(404, "bill not found, or it is ModMed-synced (not removable)");
+      return { deleted: row.id };
+    } },
+
   // Invoices — staff issue, record payments, void (RLS is staff-only too;
   // the route check just turns an RLS violation into a clean 403).
   { method: "POST", path: "/api/invoices", auth: true, h: async (ctx, client) => {

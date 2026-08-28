@@ -186,6 +186,15 @@ async function main() {
   await oc4.end();
   ok("duplicate closed with merge note", mergedRow.status === "closed" && /MERGED into/.test(mergedRow.notes ?? ""), JSON.stringify(mergedRow));
 
+  // --- staff remove redundant imported bills; ModMed bills protected ---
+  const oc5 = new pg.Client({ connectionString: OWNER }); await oc5.connect();
+  await oc5.query("insert into medical_bills(id,case_id,firm_id,provider_id,date_of_service,billed_amount,emr_source) select 'bbbb7777-7777-7777-7777-777777777777',$1,$2,id,'2026-07-01',999,'manual' from providers limit 1", [C1, F1]);
+  await oc5.query("insert into medical_bills(id,case_id,firm_id,provider_id,date_of_service,billed_amount,emr_source) select 'bbbb6666-6666-6666-6666-666666666666',$1,$2,id,'2026-07-02',888,'modmed' from providers limit 1", [C1, F1]);
+  await oc5.end();
+  ok("attorney cannot delete bills", (await att1("DELETE", "/api/bills/bbbb7777-7777-7777-7777-777777777777")).status === 403);
+  ok("staff delete manual bill", (await staff("DELETE", "/api/bills/bbbb7777-7777-7777-7777-777777777777")).status === 200);
+  ok("ModMed-synced bill not removable", (await staff("DELETE", "/api/bills/bbbb6666-6666-6666-6666-666666666666")).status === 404);
+
   // --- invites: email onboarding (claim on first verified sign-in) ---
   ok("attorney cannot create invites", (await att1("POST", "/api/invites", { email: "x@y.com", is_staff: true })).status === 403);
   const invStaff = await staff("POST", "/api/invites", { email: "Billing@MiiSpine.com", is_staff: true });

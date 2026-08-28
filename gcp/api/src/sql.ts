@@ -55,7 +55,7 @@ export async function getDashboard(c: pg.PoolClient) {
        left join attorneys a on a.id=c.attorney_id`)).rows;
   const ids = cases.map((r) => r.id);
   const grab = async (sql: string) => ids.length ? (await c.query(sql, [ids])).rows : [];
-  const bills = await grab("select b.case_id, b.id, b.description, b.billed_amount, b.pip_paid, b.insurance_paid, b.lien_amount, b.lien_manual, b.collected_amount, p.name as provider_name, p.is_miispine from medical_bills b left join providers p on p.id=b.provider_id where b.case_id = any($1)");
+  const bills = await grab("select b.case_id, b.id, b.description, b.billed_amount, b.pip_paid, b.insurance_paid, b.lien_amount, b.lien_manual, b.collected_amount, b.emr_source, p.name as provider_name, p.is_miispine from medical_bills b left join providers p on p.id=b.provider_id where b.case_id = any($1)");
   const pip = await grab("select case_id, status, balance_remaining from pip_ledger where case_id = any($1)");
   const ms = await grab("select case_id, milestone_type, actual_date from milestones where case_id = any($1) and actual_date is not null");
   const recs = await grab("select id, case_id, record_type, status, filename, description, received_date, emr_source, (storage_key is not null) as has_file from records where case_id = any($1) order by received_date desc nulls last");
@@ -75,7 +75,7 @@ export async function getDashboard(c: pg.PoolClient) {
     attorney: { name: r.attorney_name, email: r.attorney_email, avg_response_days: r.avg_response_days, preferred_contact: r.preferred_contact },
     client: { first_name: r.first_name, last_name: r.last_name, hipaa_release_on_file: r.hipaa_release_on_file },
     pip_ledger: pM.has(r.id) ? [pM.get(r.id)] : [],
-    medical_bills: (bM.get(r.id) ?? []).map((b) => ({ id: b.id, description: b.description, billed_amount: b.billed_amount, pip_paid: b.pip_paid, insurance_paid: b.insurance_paid, lien_amount: b.lien_amount, lien_manual: b.lien_manual, collected_amount: b.collected_amount, provider: { name: b.provider_name, is_miispine: b.is_miispine } })),
+    medical_bills: (bM.get(r.id) ?? []).map((b) => ({ id: b.id, description: b.description, billed_amount: b.billed_amount, pip_paid: b.pip_paid, insurance_paid: b.insurance_paid, lien_amount: b.lien_amount, lien_manual: b.lien_manual, collected_amount: b.collected_amount, emr_source: b.emr_source, provider: { name: b.provider_name, is_miispine: b.is_miispine } })),
     milestones: (mM.get(r.id) ?? []).map((m) => ({ milestone_type: m.milestone_type, actual_date: m.actual_date })),
     records: (rM.get(r.id) ?? []).map((x) => ({ id: x.id, record_type: x.record_type, status: x.status, filename: x.filename, description: x.description, has_file: x.has_file, received_date: x.received_date, emr_source: x.emr_source })),
   }));
@@ -107,6 +107,15 @@ export async function createInvite(c: pg.PoolClient, b: any, invitedBy: string) 
 
 export async function deleteInvite(c: pg.PoolClient, id: string) {
   const r = await c.query("delete from user_invites where id = $1 and claimed_at is null returning id", [id]);
+  return r.rows[0] ?? null;
+}
+
+// Staff-only (route-gated): remove an imported/manual bill (e.g. the
+// workbook's aggregate-charges line made redundant by ModMed detail after a
+// merge). ModMed-synced bills are refused — the nightly sync owns those.
+export async function deleteBill(c: pg.PoolClient, id: string) {
+  const r = await c.query(
+    "delete from medical_bills where id = $1 and coalesce(emr_source, 'manual') <> 'modmed' returning id", [id]);
   return r.rows[0] ?? null;
 }
 
