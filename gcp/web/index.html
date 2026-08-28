@@ -699,8 +699,13 @@ async function refreshInvites() {
     box.innerHTML = rows.length ? rows.map((i) => `
       <div class="doc-row">
         <div class="doc-name" title="${i.email}">${i.email}</div>
-        <div class="doc-meta">${i.is_staff ? "Staff" : (i.firm_name || "Attorney")} · ${i.claimed_at ? "joined" : "pending"}</div>
-        ${i.claimed_at ? "<span></span>" : `<button class="rec-btn rec-request" onclick="revokeInvite('${i.id}')">Revoke</button>`}
+        <div class="doc-sub">
+          <div class="doc-meta">${i.is_staff ? "Staff" : (i.firm_name || "Attorney")} · ${i.claimed_at ? "joined" : "pending"}</div>
+          ${i.claimed_at ? "<span></span>" : `<span style="display:flex;gap:5px">
+            <button class="rec-btn rec-download" onclick="copyInviteMsg(this, '${i.email}')">Copy invite message</button>
+            <button class="rec-btn rec-request" onclick="revokeInvite('${i.id}')">Revoke</button>
+          </span>`}
+        </div>
       </div>`).join("") : `<div style="padding:10px;font-size:12px">No invites yet.</div>`;
   } catch (e) { box.innerHTML = `<div style="padding:10px;font-size:12px">Load failed: ${e.message || e}</div>`; }
 }
@@ -719,6 +724,22 @@ window.sendInvite = async () => {
     document.getElementById("inv-email").value = "";
     refreshInvites();
   } catch (e) { err.textContent = e.message || String(e); }
+};
+
+// Invites don't email anyone — staff send the instructions themselves (their
+// own email/text reaches an inbox more reliably than any automated sender).
+window.copyInviteMsg = (btn, email) => {
+  const msg = `You've been set up with access to miiCase, miiSpine's case dashboard.
+
+To get in (takes about 2 minutes):
+1. Go to https://miicase.miispine.com
+2. Click "New user? Create an account" and sign up using this email address: ${email}
+3. Check your inbox for a verification email (check spam too), click the link in it, then sign in.
+
+That's it — your access connects automatically after you verify.`;
+  navigator.clipboard.writeText(msg).then(
+    () => { btn.textContent = "Copied ✓"; setTimeout(() => (btn.textContent = "Copy invite message"), 1500); },
+    () => toast("Copy failed"));
 };
 
 window.revokeInvite = async (id) => {
