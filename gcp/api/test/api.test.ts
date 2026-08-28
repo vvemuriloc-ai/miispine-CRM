@@ -186,6 +186,13 @@ async function main() {
   await oc4.end();
   ok("duplicate closed with merge note", mergedRow.status === "closed" && /MERGED into/.test(mergedRow.notes ?? ""), JSON.stringify(mergedRow));
 
+  // --- void status: staff-only, reversible ---
+  ok("attorney cannot void a case", (await att1("PATCH", `/api/cases/${C1}`, { status: "void" })).status === 403);
+  const vd = await staff("PATCH", `/api/cases/${C1}`, { status: "void" });
+  ok("staff void a case", vd.status === 200 && (await vd.json()).status === "void");
+  const rst = await staff("PATCH", `/api/cases/${C1}`, { status: "active" });
+  ok("void is reversible", rst.status === 200 && (await rst.json()).status === "active");
+
   // --- staff remove redundant imported bills; ModMed bills protected ---
   const oc5 = new pg.Client({ connectionString: OWNER }); await oc5.connect();
   await oc5.query("insert into medical_bills(id,case_id,firm_id,provider_id,date_of_service,billed_amount,emr_source) select 'bbbb7777-7777-7777-7777-777777777777',$1,$2,id,'2026-07-01',999,'manual' from providers limit 1", [C1, F1]);

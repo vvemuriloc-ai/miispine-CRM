@@ -87,7 +87,9 @@ export const routes: Route[] = [
     } },
 
   // Update a case: status, review state, and editable fields (firm-or-staff).
+  // Voiding (hiding a junk case from every view) is a staff-only judgment.
   { method: "PATCH", path: "/api/cases/:id", auth: true, h: async (ctx, client) => {
+      if (ctx.body?.status === "void" && !ctx.profile.isStaff) throw new HttpError(403, "staff only");
       const row = await q.updateCase(client, ctx.params.id, ctx.body ?? {});
       if (!row) throw new HttpError(404, "case not found or not permitted");
       return row;

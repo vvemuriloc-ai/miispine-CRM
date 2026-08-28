@@ -461,7 +461,7 @@ function deriveCase(base) {
     records: base.records || [],
     totalBilled, pipPaid, insPaid, totalLien, collected,
     miispineLien, otherLiens, balance, collateral, netSpecials, score,
-    dueForFollowup: base.next_followup_days !== null && base.next_followup_days <= 0 && base.priority !== "hold" && !["closed", "settled"].includes(base.status),
+    dueForFollowup: base.next_followup_days !== null && base.next_followup_days <= 0 && base.priority !== "hold" && !["closed", "settled", "void"].includes(base.status),
     overdue: base.next_followup_days !== null && base.next_followup_days <= -7,
   };
 }
@@ -775,7 +775,7 @@ function reviewCases() {
 }
 
 function renderHeaderStats() {
-  const open = CASES.filter((c) => !["closed", "settled"].includes(c.status));
+  const open = CASES.filter((c) => !["closed", "settled", "void"].includes(c.status));
   const outstanding = open.reduce((s, c) => s + c.balance, 0);
   document.getElementById("stat-outstanding").textContent = fmtK(outstanding);
   document.getElementById("stat-cases").textContent = open.length;
@@ -847,7 +847,7 @@ function renderReview() {
 
 // ---- Dashboard: AR aging by firm ---------------------------
 function renderDashboard() {
-  const open = CASES.filter((c) => c.status !== "closed");
+  const open = CASES.filter((c) => !["closed", "void"].includes(c.status));
   const totalCollected = CASES.reduce((s, c) => s + c.collected, 0);
   const miiOut = open.reduce((s, c) => s + Math.max(0, c.miispineLien), 0);
   const miiCount = open.filter((c) => c.miispineLien > 0).length;
@@ -938,8 +938,13 @@ function caseRowsHtml() {
   const q = caseSearch.trim().toLowerCase();
   const hit = (c) => !q || [c.patient, c.claim, c.firmName, c.atty.name, c.carrier, c.assignedTo, c.status]
     .some((v) => (v || "").toLowerCase().includes(q));
+  // Void cases (created in error) surface only under "All" — never in the
+  // open worklist or the settled archive.
   const list = CASES.filter((c) =>
-    (caseFilter === "all" ? true : caseFilter === "done" ? DONE.includes(c.status) : !DONE.includes(c.status)) && hit(c));
+    (c.status === "void"
+      ? caseFilter === "all"
+      : caseFilter === "all" ? true : caseFilter === "done" ? DONE.includes(c.status) : !DONE.includes(c.status))
+    && hit(c));
   const rows = list.slice().sort((a, b) => b.balance - a.balance).map((c) => `
     <tr data-case="${c.id}" onclick="selectCase('${c.id}')">
       <td><div class="name-primary">${c.patient}${chartUrl(c) ? ` <a class="mm-tag-link" href="${chartUrl(c)}" target="_blank" rel="noopener" title="Open in ModMed" onclick="event.stopPropagation()">MM ↗</a>` : ""}</div><div class="name-sub">${c.claim}</div></td>
@@ -1041,7 +1046,7 @@ function renderAutopilot() {
     }));
   } else {
     queue = CASES
-      .filter((c) => !["closed", "settled"].includes(c.status) && c.priority !== "hold" && (c.next_followup_days === null || c.next_followup_days <= 0))
+      .filter((c) => !["closed", "settled", "void"].includes(c.status) && c.priority !== "hold" && (c.next_followup_days === null || c.next_followup_days <= 0))
       .sort((a, b) => b.score - a.score)
       .map((c) => ({
         id: c.id, patient: c.patient, firmName: c.firmName, attyName: c.atty.name,
@@ -1649,10 +1654,11 @@ function renderDetail() {
       </div>
       <div class="recon-actions">
         <button class="btn-save" onclick="saveCaseDetails('${c.id}')">Save details</button>
-        ${["settled", "closed"].includes(c.status)
-          ? `<button class="btn-resolve" onclick="setCaseStatus('${c.id}','active')">Reopen case</button>`
+        ${["settled", "closed", "void"].includes(c.status)
+          ? `<button class="btn-resolve" onclick="setCaseStatus('${c.id}','active')">${c.status === "void" ? "Restore case" : "Reopen case"}</button>`
           : `<button class="btn-resolve" onclick="setCaseStatus('${c.id}','settled')">Mark settled (paid in full)</button>`}
         ${IS_STAFF ? `<button class="btn-resolve" onclick="openMerge('${c.id}')">Merge duplicate…</button>` : ""}
+        ${IS_STAFF && c.status !== "void" ? `<button class="btn-resolve" onclick="voidCase('${c.id}')">Void (created in error)</button>` : ""}
       </div>
     </div>
 
@@ -1705,6 +1711,13 @@ window.saveCaseDetails = async (id) => {
   const mc = MOCK.cases.find((x) => x.id === id);
   if (mc) mc.claim = body.claim_number || mc.claim;
   CASES = buildMockCases(); renderDetail(); toast("Saved (demo)");
+};
+
+// Staff: void a junk case (import garbage, created in error). Hidden from
+// every view except Cases → All; reversible via Restore. Never a delete.
+window.voidCase = async (id) => {
+  if (!confirm("Void this case? It disappears from all views (findable under Cases → All) and can be restored. Use only for cases created in error — real cases get Mark settled or Merge instead.")) return;
+  await setCaseStatus(id, "void");
 };
 
 window.setCaseStatus = async (id, status) => {
