@@ -499,12 +499,14 @@ function mapCaseRow(row) {
   const ms = (row.milestones || [])
     .filter((m) => m.actual_date)
     .sort((a, b) => new Date(b.actual_date) - new Date(a.actual_date))[0];
-  const lastInitial = client.last_name ? client.last_name.charAt(0) + "." : "";
+  // "Last, First" — matches ModMed's convention so staff read both systems
+  // the same way.
+  const patientName = [client.last_name, client.first_name].filter(Boolean).join(", ");
 
   return deriveCase({
     id: row.id,
     firm: firm.id || row.firm_id,
-    patient: `${client.first_name || ""} ${lastInitial}`.trim() || "Unknown",
+    patient: patientName || "Unknown",
     claim: row.claim_number || "",
     status: row.status,
     opened_days: daysAgo(row.opened_at) ?? 0,
