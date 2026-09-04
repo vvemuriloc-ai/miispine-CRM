@@ -180,6 +180,23 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
 .map-contact-sub { font-size: 11px; color: var(--mid); margin-top: 1px; }
 .map-contact-tags { display: flex; gap: 6px; margin-top: 3px; align-items: center; flex-wrap: wrap; }
 
+
+/* ── Pipeline strip ─────────────────────────────────────────────── */
+.pipeline{display:flex;gap:6px;padding:10px 16px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line,#e5e0dd);background:var(--sand,#F7F2F0)}
+.pstage{flex:1 1 130px;min-width:120px;padding:8px 10px;border-radius:4px;
+  background:#fff;border:1px solid var(--line,#e5e0dd);cursor:pointer;
+  transition:border-color .15s,background .15s}
+.pstage:hover{border-color:var(--orange,#F04E23)}
+.pstage.active{border-color:var(--orange,#F04E23);background:#fff6f3}
+.pstage-num{font-size:22px;font-weight:600;line-height:1.1;color:#1A1614}
+.pstage-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--mid,#8A7E79);margin-top:2px}
+.pstage-delta{font-size:10px;color:var(--mid,#8A7E79);margin-top:1px}
+.pstage.cold{background:#fff8f6}
+.pstage.cold .pstage-num{color:var(--orange,#F04E23)}
+.stage-age{font-size:10px;color:var(--mid,#8A7E79)}
+.stage-age.stale{color:var(--orange,#F04E23);font-weight:500}
 </style>
 </head>
 <body>
@@ -202,7 +219,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
   <div class="header-stats">
     <div class="hstat"><div class="hstat-num overdue" id="stat-overdue">0</div><div class="hstat-label">Overdue</div></div>
     <div class="hstat"><div class="hstat-num due" id="stat-due">0</div><div class="hstat-label">Due Today</div></div>
-    <div class="hstat"><div class="hstat-num ok" id="stat-ok">0</div><div class="hstat-label">On Track</div></div>
+    <div class="hstat"><div class="hstat-num overdue" id="stat-cold">0</div><div class="hstat-label">Going cold</div></div>
     <div class="hstat"><div class="hstat-num" style="color:var(--mid)" id="stat-total">0</div><div class="hstat-label">Total</div></div>
   </div>
 </div>
@@ -212,6 +229,9 @@ body { font-family: 'DM Sans', sans-serif; background: var(--dark); color: var(-
   <button class="tab-btn" onclick="switchTab('pi')">PI Attorneys</button>
   <button class="tab-btn" onclick="switchTab('dpc')">Concierge & DPC</button>
 </div>
+
+<!-- Pipeline: where relationships actually are. Click a stage to filter. -->
+<div class="pipeline" id="pipeline"></div>
 
 <div class="toolbar">
   <div class="filter-group">
@@ -373,7 +393,64 @@ const DPC_SHEET   = 'Louisville Concierge & DPC';
 // Column order in the sheet (A=0, B=1, ...)
 const COLS = ['id','type','firstname','lastname','practice','phone','email','website',
               'address','city','zip','source','priority','touch','completed',
-              'nextActionDate','lastContactDate','createdAt','notes'];
+              'nextActionDate','lastContactDate','createdAt','notes',
+              'stage','referralsSent','lastReferralDate','providerName','managerName'];
+
+// ── PIPELINE STAGES ───────────────────────────────────────────────────
+// A stage advances only on an OUTCOME, never on an activity. "Visited" is
+// not a stage; "reached the provider" is.
+const STAGES = [
+  {n:0, key:'new',       label:'Not started'},
+  {n:1, key:'desk',      label:'Front desk only'},
+  {n:2, key:'provider',  label:'Reached provider'},
+  {n:3, key:'drv',       label:'Talked to Dr. V'},
+  {n:4, key:'referral',  label:'First referral'},
+  {n:5, key:'active',    label:'Active referrer'}
+];
+const COLD_DAYS = 21;
+
+// Explicit Stage column wins. Otherwise infer from referral count, touch
+// status and the visit notes, so this works before the sheet is migrated.
+function deriveStage(c) {
+  const explicit = parseInt(c.stage);
+  if (!isNaN(explicit) && explicit >= 0 && explicit <= 5) return explicit;
+  const refs = parseInt(c.referralsSent) || 0;
+  if (refs >= 2) return 5;
+  if (refs >= 1) return 4;
+  const n = String(c.notes || '').toLowerCase();
+  const ts = String(c.touchStatus || '').toLowerCase();
+  if (/dr\.?\s*v(emuri)?|met with the doctor|lunch (with|at) mii|meeting at miispine/.test(n)) return 3;
+  if (/spoke (with|to) dr|met (with )?dr|spoke with the dr|provider (said|stated)|office manager/.test(n)) return 2;
+  if (/front desk|dropped off|drop(ped)? info|left (info|flyer|card)|receptionist/.test(n)) return 1;
+  if (ts.startsWith('touch')) return 1;
+  return 0;
+}
+
+// Days since we last actually did something. Falls back to the most recent
+// date written into the notes, which is where the real history lives.
+function daysSinceContact(c) {
+  let d = c.lastContactDate ? new Date(c.lastContactDate + 'T12:00:00') : null;
+  if (!d || isNaN(d)) {
+    const hits = String(c.notes||'').match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/g) || [];
+    for (const h of hits) {
+      const [mo,da,yr] = h.split(/[\/-]/).map(Number);
+      const y = yr < 100 ? 2000 + yr : yr;
+      const cand = new Date(y, mo-1, da, 12);
+      if (!isNaN(cand) && (!d || cand > d)) d = cand;
+    }
+  }
+  if (!d || isNaN(d)) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+// Warm and going cold: engaged at some level, nothing for three weeks,
+// and not yet referring. This is the most valuable list in the system.
+function isGoingCold(c) {
+  const st = deriveStage(c);
+  if (st < 1 || st > 3) return false;
+  const d = daysSinceContact(c);
+  return d !== null && d >= COLD_DAYS;
+}
 
 // ── STATE ─────────────────────────────────────────────────────────────
 let contacts = [];
@@ -389,13 +466,19 @@ let isSaving = false;
 const SHEET_COL_MAP = {
   chiro: { practice:'Practice Name', phone:'Phone', email:'Email', website:'Website',
            address:'Street', city:'City', state:'State', zip:'Zip',
-           priority:'Priority', touchStatus:'Touch Status', nextActionDate:'Next Action Date', notes:'Notes' },
+           priority:'Priority', touchStatus:'Touch Status', nextActionDate:'Next Action Date', notes:'Notes',
+           stage:'Stage', referralsSent:'Referrals Sent', lastReferralDate:'Last Referral Date',
+           providerName:'Provider Name', managerName:'Office Manager' },
   pi:    { practice:'Firm Name', phone:'Phone', email:'Email', website:'Website',
            address:'Street', city:'City', state:'State', zip:'Zip',
-           priority:'Priority', touchStatus:'Touch Status', nextActionDate:'Next Action Date', notes:'Notes' },
+           priority:'Priority', touchStatus:'Touch Status', nextActionDate:'Next Action Date', notes:'Notes',
+           stage:'Stage', referralsSent:'Referrals Sent', lastReferralDate:'Last Referral Date',
+           providerName:'Provider Name', managerName:'Office Manager' },
   dpc:   { practice:'Practice Name', phone:'Phone', email:'Email', website:'Website',
            address:'Address', city:'City', state:'State',
-           priority:'Priority', touchStatus:'Touch Status', nextActionDate:'Next Action Date', notes:'Notes' }
+           priority:'Priority', touchStatus:'Touch Status', nextActionDate:'Next Action Date', notes:'Notes',
+           stage:'Stage', referralsSent:'Referrals Sent', lastReferralDate:'Last Referral Date',
+           providerName:'Provider Name', managerName:'Office Manager' }
 };
 
 // ── SHEET HELPERS ─────────────────────────────────────────────────────
@@ -1007,11 +1090,35 @@ function personalize(body, c) {
 
 function hlPH(t) { return t.replace(/\[([^\]]+)\]/g, '<span class="epl">[$1]</span>'); }
 
+let filterStage = 'all';   // 'all' | 0-5 | 'cold'
+
 // ── FILTERS ───────────────────────────────────────────────────────────
 function switchTab(tab) {
   activeTab = tab; selectedId = null;
   document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', (i===0&&tab==='chiro')||(i===1&&tab==='pi')||(i===2&&tab==='dpc')));
-  renderDetail(); renderTable();
+  renderDetail(); renderTable(); updateStats();
+}
+
+function renderPipeline() {
+  const el = document.getElementById('pipeline');
+  if (!el) return;
+  const inTab = contacts.filter(c => c.type === activeTab);
+  const cold = inTab.filter(isGoingCold).length;
+  const cells = STAGES.map(st => {
+    const n = inTab.filter(c => deriveStage(c) === st.n).length;
+    return `<div class="pstage ${filterStage===st.n?'active':''}" onclick="setStageFilter(${st.n})">
+      <div class="pstage-num">${n}</div><div class="pstage-label">${st.label}</div></div>`;
+  });
+  cells.push(`<div class="pstage cold ${filterStage==='cold'?'active':''}" onclick="setStageFilter('cold')">
+    <div class="pstage-num">${cold}</div><div class="pstage-label">Warm — going cold</div>
+    <div class="pstage-delta">no contact ${COLD_DAYS}+ days</div></div>`);
+  el.innerHTML = cells.join('');
+}
+
+function setStageFilter(f) {
+  filterStage = (filterStage === f) ? 'all' : f;   // click again to clear
+  renderPipeline();
+  renderTable();
 }
 
 function setStatusFilter(f) {
@@ -1040,6 +1147,8 @@ function filteredContacts() {
       if (filterStatus === 'active' && s === 'complete') return false;
       if (filterStatus !== 'active' && s !== filterStatus) return false;
     }
+    if (filterStage === 'cold') { if (!isGoingCold(c)) return false; }
+    else if (filterStage !== 'all' && deriveStage(c) !== filterStage) return false;
     if (filterPriority !== 'all' && c.priority !== filterPriority) return false;
     if (searchQuery) {
       const hay = `${c.firstname} ${c.lastname} ${c.practice} ${c.address} ${c.city} ${c.email}`.toLowerCase();
@@ -1054,6 +1163,10 @@ function renderTable() {
   const tbody = document.getElementById('contact-tbody');
   const list = filteredContacts();
   list.sort((a, b) => {
+    if (filterStage !== 'all') {              // stalest first — that IS the queue
+      const da = daysSinceContact(a), db = daysSinceContact(b);
+      if (da !== db) return (db ?? -1) - (da ?? -1);
+    }
     const ord = {overdue:0,due:1,ok:2,complete:3};
     const pord = {High:0,Medium:1,Low:2};
     const sa = ord[getStatus(a)], sb = ord[getStatus(b)];
@@ -1088,7 +1201,9 @@ function renderTable() {
       <td><div style="font-size:11px;color:var(--mid)">${c.email||'—'}</div></td>
       <td><div style="font-size:11px">${website?`<a href="https://${website}" target="_blank" onclick="event.stopPropagation()" style="color:var(--orange)">${website}</a>`:'—'}</div></td>
       <td><span class="${pCls[c.priority]||'priority-low'}">${c.priority||'—'}</span></td>
-      <td><div class="touch-pips">${pips}</div><div style="font-size:10px;color:var(--mid);margin-top:2px">${isComplete?'Done':'T'+c.touch}</div></td>
+      <td><div class="touch-pips">${pips}</div>
+          <div style="font-size:10px;color:var(--mid);margin-top:2px">${(STAGES[deriveStage(c)]||{}).label||''}</div>
+          <div class="stage-age ${(daysSinceContact(c)??0)>=COLD_DAYS?'stale':''}">${daysSinceContact(c)===null?'':daysSinceContact(c)+'d since contact'}</div></td>
       <td style="font-size:11px;color:var(--mid)">${isComplete?'—':TOUCH_LABELS[c.touch-1]||'—'}</td>
       <td>${stHtml}</td>
       <td><div class="action-cell">
@@ -1103,8 +1218,9 @@ function renderTable() {
 function updateStats() {
   document.getElementById('stat-overdue').textContent = contacts.filter(c=>getStatus(c)==='overdue').length;
   document.getElementById('stat-due').textContent = contacts.filter(c=>getStatus(c)==='due').length;
-  document.getElementById('stat-ok').textContent = contacts.filter(c=>getStatus(c)==='ok').length;
+  document.getElementById('stat-cold').textContent = contacts.filter(c=>c.type===activeTab && isGoingCold(c)).length;
   document.getElementById('stat-total').textContent = contacts.length;
+  renderPipeline();
 }
 
 // ── DETAIL PANEL ──────────────────────────────────────────────────────
