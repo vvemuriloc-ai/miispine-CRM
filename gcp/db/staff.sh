@@ -28,5 +28,5 @@ done
 PGPASSWORD="$PW" psql -h 127.0.0.1 -p "$PORT" -U postgres -d "$DBNAME" \
   -v ON_ERROR_STOP=1 \
   -c "select assign_staff('$UID_ARG', '$EMAIL');" \
-  -c "select uid, email, is_staff from user_profiles where uid = '$UID_ARG';"
+  -c "select user_id, email, is_staff from user_profiles where user_id = '$UID_ARG';"
 echo "staff access granted: $EMAIL"
